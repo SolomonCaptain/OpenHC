@@ -23,7 +23,8 @@ add_compile_options(
 
 include_directories(./Inc)
 
-add_executable(
+add_library(
         ${PROJECT_NAME}
+        SHARED
         Src/main.cpp
 )
