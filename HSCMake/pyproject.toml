@@ -1,0 +1,18 @@
+[project]
+name = "hscmake"
+version = "0.1.0"
+description = "Hybrid Source Construction Make - Build C++/Rust/TypeScript with one tool"
+authors = [{ name = "Istaroth", email = "zou12345@qq.com" }]
+requires-python = ">=3.13"
+dependencies = [
+    "click>=8.1.0",
+    "pex>=2.89.1",
+]
+license = "MIT"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project.scripts]
+hscmake = "hscmake.cli:main"

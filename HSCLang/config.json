@@ -1,0 +1,309 @@
+{
+  "metadata": {
+    "name": "HeteroLang",
+    "version": "0.1.0",
+    "description": "A compiled language for heterogeneous simulation computing on FPGA, NPU, and GPU."
+  },
+  "lex": {
+    "keywords": [
+      "task", "pipeline", "graph", "spawn", "buffer", "device", "pattern", "policy", "body",
+      "parallel", "for", "reduce", "scan", "stage", "edge", "node", "place", "on",
+      "import", "use", "as", "from", "fn", "let", "mut", "return", "if", "else", "while",
+      "loop", "break", "continue", "match", "type", "struct", "enum", "trait", "impl",
+      "true", "false", "nil", "async", "await", "move", "copy", "clone", "ref", "deref",
+      "GPU", "NPU", "FPGA", "CPU", "Host", "DeviceLocal", "Unified", "Pinned",
+      "ParallelPattern", "SchedulePolicy", "WorkGranularity", "Priority", "DataLayout"
+    ],
+    "operators": [
+      "+", "-", "*", "/", "%", "=", "==", "!=", "<", ">", "<=", ">=", "&&", "||",
+      "!", "&", "|", "^", "<<", ">>", "~", "++", "--", "+=", "-=", "*=", "/=",
+      "%=", "&=", "|=", "^=", "<<=", ">>=", "->", "=>", ":", "::", ".", "..",
+      "...", "@", "#", "$", "?", "??", "|>", "<|"
+    ],
+    "delimiters": [
+      "{", "}", "[", "]", "(", ")", "<", ">", ",", ";", ":", "|", "&"
+    ],
+    "literals": {
+      "integer": "[0-9][0-9_]*([uif](8|16|32|64|128))?",
+      "float": "[0-9][0-9_]*\\.[0-9][0-9_]*([eE][+-]?[0-9]+)?[fF]?(32|64)?",
+      "string": "\"(\\\\.|[^\"])*\"",
+      "char": "'(\\\\.|[^'])'",
+      "boolean": "true|false",
+      "nil": "nil"
+    },
+    "comments": {
+      "line": "//.*",
+      "block": "/\\*[\\s\\S]*?\\*/"
+    },
+    "identifiers": "[a-zA-Z_][a-zA-Z0-9_]*"
+  },
+  "syntax": {
+    "program": ["(import_statement | use_statement)*", "declaration*"],
+    "import_statement": "import (identifier '::')* identifier ('as' identifier)? ;",
+    "use_statement": "use (identifier '::')* identifier ('as' identifier)? ;",
+    "declaration": [
+      "function_declaration",
+      "task_declaration",
+      "struct_declaration",
+      "enum_declaration",
+      "trait_declaration",
+      "impl_declaration",
+      "type_alias",
+      "constant_declaration"
+    ],
+    "function_declaration": "fn identifier '(' parameter_list? ')' ('->' type)? block",
+    "task_declaration": "'task' identifier (':' type)? '{' (task_pattern ','?)? (task_policy ','?)? task_body '}'",
+    "task_pattern": "'pattern' ':' pattern_kind",
+    "pattern_kind": "identifier '{' (identifier ':' value (','?))* '}'",
+    "task_policy": "'policy' ':' policy_spec",
+    "policy_spec": "identifier '{' (identifier ':' value (','?))* '}'",
+    "task_body": "'body' '(' parameter_list? ')' ('->' type)? block",
+    "struct_declaration": "'struct' identifier '{' field_list? '}'",
+    "enum_declaration": "'enum' identifier '{' variant_list? '}'",
+    "trait_declaration": "'trait' identifier '{' method_signature* '}'",
+    "impl_declaration": "'impl' type 'for' type '{' method_definition* '}'",
+    "type_alias": "'type' identifier '=' type ';'",
+    "constant_declaration": "'let' 'const' identifier ':' type '=' expression ';'",
+    "block": "'{' statement* '}'",
+    "statement": [
+      "variable_declaration",
+      "assignment_statement",
+      "return_statement",
+      "if_statement",
+      "while_statement",
+      "loop_statement",
+      "break_statement",
+      "continue_statement",
+      "match_statement",
+      "expression_statement",
+      "task_spawn_statement",
+      "pipeline_statement",
+      "graph_statement"
+    ],
+    "variable_declaration": "'let' ('mut')? identifier (':' type)? ('=' expression)? ';'",
+    "assignment_statement": "expression ('=' | '+=' | '-=' | '*=' | '/=' | '%=' | '&=' | '|=' | '^=' | '<<=' | '>>=') expression ';'",
+    "return_statement": "'return' expression? ';'",
+    "if_statement": "'if' expression block ('else' (if_statement | block))?",
+    "while_statement": "'while' expression block",
+    "loop_statement": "'loop' block",
+    "break_statement": "'break' ';'",
+    "continue_statement": "'continue' ';'",
+    "match_statement": "'match' expression '{' match_arm* '}'",
+    "match_arm": "pattern ('|' pattern)* '=>' (expression | block) ','?",
+    "expression_statement": "expression ';'",
+    "task_spawn_statement": "'spawn' ('on' device_expression)? task_expression ('.await')? ';'",
+    "pipeline_statement": "'pipeline' identifier? '{' pipeline_stage+ '}'",
+    "pipeline_stage": "'stage' (device_expression '::')? identifier? '(' expression? ')' '->' identifier? ';'",
+    "graph_statement": "'graph' identifier? '{' graph_node+ graph_edge+ '}'",
+    "graph_node": "'node' identifier ':' expression ';'",
+    "graph_edge": "'edge' identifier '->' identifier (',' identifier '->' identifier)* ';'",
+    "device_expression": "identifier ('::' identifier)*",
+    "parameter_list": "parameter (',' parameter)*",
+    "parameter": "identifier ':' type",
+    "field_list": "field (',' field)*",
+    "field": "identifier ':' type",
+    "variant_list": "variant (',' variant)*",
+    "variant": "identifier ('(' type (',' type)* ')')?",
+    "method_signature": "fn identifier '(' parameter_list? ')' ('->' type)? ';'",
+    "method_definition": "fn identifier '(' parameter_list? ')' ('->' type)? block",
+    "type": [
+      "basic_type",
+      "array_type",
+      "slice_type",
+      "tuple_type",
+      "pointer_type",
+      "reference_type",
+      "function_type",
+      "task_type",
+      "buffer_type",
+      "named_type"
+    ],
+    "basic_type": "i8 | i16 | i32 | i64 | i128 | u8 | u16 | u32 | u64 | u128 | f32 | f64 | bool | char | nil",
+    "array_type": "'[' type ';' expression ']'",
+    "slice_type": "'[' type ']'",
+    "tuple_type": "'(' type (',' type)* ')'",
+    "pointer_type": "'*' type",
+    "reference_type": "'&' ('mut')? type",
+    "function_type": "'fn' '(' type_list? ')' ('->' type)?",
+    "task_type": "'task' '<' type_list? '>'",
+    "buffer_type": "'Buffer' '<' type (',' integer)? '>'",
+    "named_type": "identifier ('::' identifier)*",
+    "type_list": "type (',' type)*",
+    "expression": [
+      "literal",
+      "identifier",
+      "binary_expression",
+      "unary_expression",
+      "call_expression",
+      "field_access",
+      "index_expression",
+      "if_expression",
+      "match_expression",
+      "block_expression",
+      "task_expression",
+      "pipeline_expression",
+      "graph_expression",
+      "place_on_expression",
+      "move_to_expression",
+      "await_expression"
+    ],
+    "literal": "integer_literal | float_literal | string_literal | char_literal | boolean_literal | nil_literal",
+    "binary_expression": "expression operator expression",
+    "unary_expression": "operator expression",
+    "call_expression": "expression '(' argument_list? ')'",
+    "field_access": "expression '.' identifier",
+    "index_expression": "expression '[' expression ']'",
+    "if_expression": "'if' expression block ('else' (if_expression | block))?",
+    "match_expression": "'match' expression '{' match_arm* '}'",
+    "block_expression": "block",
+    "task_expression": "identifier ('::' identifier)*",
+    "pipeline_expression": "'pipeline' '{' pipeline_stage+ '}'",
+    "graph_expression": "'graph' '{' graph_node+ graph_edge+ '}'",
+    "place_on_expression": "expression '.place_on(' device_expression ')'",
+    "move_to_expression": "expression '.move_to(' device_expression ')'",
+    "await_expression": "expression '.await'",
+    "argument_list": "expression (',' expression)*",
+    "operator": "one of: + - * / % == != < > <= >= && || & | ^ << >> = += -= *= /= %= &= |= ^= <<= >>= ++ -- -> => :: . .. ... @ # $ ? ?? |> <| ! ~"
+  },
+  "types": {
+    "primitives": [
+      "i8", "i16", "i32", "i64", "i128",
+      "u8", "u16", "u32", "u64", "u128",
+      "f32", "f64",
+      "bool", "char", "nil"
+    ],
+    "composite": [
+      "array", "slice", "tuple", "struct", "enum"
+    ],
+    "heterogeneous": {
+      "Buffer": {
+        "description": "Multidimensional buffer with memory space and device affinity.",
+        "type_params": ["T", "Dims?"],
+        "methods": [
+          "fn zeros(shape: [usize]) -> Buffer<T>",
+          "fn place_on(self, device: DeviceType) -> Buffer<T>",
+          "fn move_to(self, device: DeviceType) -> Buffer<T>",
+          "fn copy_to_host(self) -> HostBuffer<T>",
+          "fn shape(self) -> [usize]",
+          "fn len(self) -> usize"
+        ]
+      },
+      "DeviceType": {
+        "description": "Enumeration of supported devices.",
+        "variants": ["GPU(ComputeCapability)", "NPU(ArchVersion)", "FPGA(Family)", "CPU"]
+      },
+      "MemorySpace": {
+        "description": "Memory space for buffers.",
+        "variants": ["Host", "DeviceLocal", "Unified", "Pinned"]
+      },
+      "ParallelPattern": {
+        "description": "Pattern of parallel computation.",
+        "variants": ["For", "Reduce", "Scan", "TaskGraph"]
+      },
+      "SchedulePolicy": {
+        "description": "Scheduling policy for tasks.",
+        "fields": {
+          "device_hint": "Option<DeviceType>",
+          "granularity": "WorkGranularity",
+          "priority": "Priority",
+          "recursive_split": "bool"
+        }
+      },
+      "WorkGranularity": {
+        "variants": ["Fine", "Coarse", "Adaptive"]
+      },
+      "Priority": {
+        "variants": ["Low", "Normal", "High", "Critical"]
+      },
+      "DataLayout": {
+        "variants": ["RowMajor", "ColumnMajor", "Custom(String)"]
+      }
+    }
+  },
+  "builtins": {
+    "functions": [
+      {
+        "name": "probe_devices",
+        "signature": "fn probe_devices() -> Vec<DeviceType>",
+        "description": "Returns list of available devices."
+      },
+      {
+        "name": "load_input",
+        "signature": "fn load_input<T>(path: String) -> Result<Buffer<T>>",
+        "description": "Loads data from file into a buffer."
+      },
+      {
+        "name": "save_output",
+        "signature": "fn save_output<T>(path: String, data: Buffer<T>) -> Result<()>",
+        "description": "Saves buffer to file."
+      },
+      {
+        "name": "log",
+        "signature": "fn log!(format: String, ...) -> ()",
+        "description": "Logging macro."
+      },
+      {
+        "name": "select_device",
+        "signature": "fn select_device(problem: Problem) -> DeviceType",
+        "description": "Runtime device selection based on problem characteristics."
+      }
+    ],
+    "patterns": [
+      {
+        "name": "pipeline",
+        "syntax": "pipeline Name { stage Device::kernel(inputs) -> output; ... }",
+        "description": "Defines a pipeline of stages, possibly on different devices."
+      },
+      {
+        "name": "graph",
+        "syntax": "graph Name { node A: expr; node B: expr; edge A -> B; }",
+        "description": "Defines an explicit dataflow graph."
+      },
+      {
+        "name": "parallel for",
+        "syntax": "parallel for i in 0..N { ... }",
+        "description": "Parallel loop."
+      },
+      {
+        "name": "reduce",
+        "syntax": "reduce (acc, i) => acc + i over 0..N",
+        "description": "Reduction pattern."
+      }
+    ],
+    "devices": {
+      "GPU": {
+        "methods": [
+          "fft", "solve_navier_stokes", "full_physics"
+        ]
+      },
+      "NPU": {
+        "methods": [
+          "infer", "predict_turbulence", "surrogate"
+        ]
+      },
+      "FPGA": {
+        "methods": [
+          "update_boundary", "preprocess", "fuse"
+        ]
+      }
+    }
+  },
+  "examples": [
+    {
+      "name": "Simple vector addition",
+      "code": "fn main() {\n    let a = Buffer::<f32>::zeros([1000]).place_on(GPU);\n    let b = Buffer::<f32>::zeros([1000]).place_on(GPU);\n    let c = task GPU::add(a, b).await;\n    save_output(\"out.bin\", c);\n}"
+    },
+    {
+      "name": "CFD-AI simulation",
+      "code": "task CfdAiSimulation {\n    pattern: TaskGraph { independent: false }\n    policy: Adaptive { recursive_split: true }\n    body(params: SimParams, field: FlowField) -> FlowField {\n        while t < params.max_steps && error > params.convergence {\n            let boundary_updated = task FPGA::update_boundary(field.boundary);\n            let flow_updated = task GPU::solve_navier_stokes(field.velocity, boundary_updated);\n            let turb_predicted = task NPU::predict_turbulence(field.turbulence, flow_updated);\n            error = task estimate_error(flow_updated, turb_predicted);\n            field.velocity = flow_updated;\n            field.turbulence = turb_predicted;\n            t += 1;\n        }\n        field\n    }\n}"
+    },
+    {
+      "name": "Pipeline example",
+      "code": "pipeline ImageProc {\n    stage FPGA::preprocess(raw) -> filtered;\n    stage GPU::detect_objects(filtered) -> boxes;\n    stage NPU::classify(boxes) -> labels;\n}"
+    },
+    {
+      "name": "Graph example",
+      "code": "graph MyGraph {\n    node A: preprocess(data);\n    node B: extract_features(A);\n    node C: run_npu_model(A);\n    node D: fuse(B, C);\n    edge A -> B, A -> C, B -> D, C -> D;\n}"
+    }
+  ]
+}
