@@ -1,0 +1,5 @@
+project("CfdAiSim", VERSION="0.1.0", LANGUAGE=["HSCLang"])
+
+add_executable("cfd_ai_sim"
+    SOURCES=["src/main.hl",
+])

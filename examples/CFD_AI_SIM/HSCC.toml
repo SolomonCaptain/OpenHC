@@ -1,0 +1,6 @@
+[package]
+name = "cfd_ai_sim"
+version = "0.1.0"
+edition = "2026"
+
+[dependencies]
