@@ -26,5 +26,8 @@ include_directories(./Inc)
 add_library(
         ${PROJECT_NAME}
         SHARED
+        Inc/main.h
         Src/main.cpp
+        Inc/file_manager.h
+        Src/file_manager.cpp
 )
