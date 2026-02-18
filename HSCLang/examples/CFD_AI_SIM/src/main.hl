@@ -1,0 +1,55 @@
+import hsc::*;
+import Devices::{CPU, GPU};
+import Buffer;
+
+// 定义矩阵乘法任务，在 GPU 上执行
+task gpu_matmul {
+    // 使用并行循环模式，策略采用默认
+    pattern: ParallelPattern { kind: For, independent: true }
+    policy: SchedulePolicy { device_hint: Some(GPU), granularity: Coarse, priority: Normal }
+    body(a: Buffer<f32>, b: Buffer<f32>) -> Buffer<f32> {
+        // 获取矩阵维度：a[M,K], b[K,N]
+        let m = a.shape()[0];
+        let k = a.shape()[1];
+        let n = b.shape()[1];
+
+        // 在 GPU 上分配结果矩阵 C[M,N]
+        let mut c = Buffer::<f32>::zeros([m,n]).place_on(GPU);
+
+        // 并行 for 循环，每个线程处理一行
+        parallel for i in 0..m {
+            for j in 0..n {
+                let mut sum = 0.0f32;
+                for l in 0..k {
+                    sum += a[i][l] * b[l][j];
+                }
+                c[i][j] = sum;
+            }
+        }
+        return c;
+    }
+}
+
+// 主函数
+fn main() -> () {
+    // 在主机端创建两个 1024x1024 的矩阵，并填充数据
+    let size = 1024;
+    let a_host = Buffer::<f32>::zeros([size, size]);
+    let b_host = Buffer::<f32>::zeros([size, size]);
+
+    // 将数据显式移动到 GPU 设备本地内存
+    let a_dev = a_host.move_to(GPU);
+    let b_dev = b_host.move_to(GPU);
+
+    // 在 GPU 上异步启动矩阵乘法任务，并等待结果
+    let c_dev = spawn on GPU::gpu_matmul(a_dev, b_dev).await;
+
+    // 将结果矩阵从 GPU 移回主机内存
+    let c_host = c_dev.move_to(Host);
+
+    // 输出结果矩阵的第一个元素
+    log!("Result[0][0] = {}", c_host[0][0]);
+
+    // 保存结果的文件
+    save_output("result.bin", c_host);
+}

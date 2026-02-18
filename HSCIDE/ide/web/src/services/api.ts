@@ -22,6 +22,14 @@ export interface HealthResponse {
     service: string;
 }
 
+export interface FileResponse {
+    file_name: string;
+    file_path: string;
+    file_size: number;
+    file_type: string;
+    file_content: string;
+}
+
 // API调用函数
 export const apiService = {
     // 获取Hello World消息
@@ -34,6 +42,26 @@ export const apiService = {
     async checkHealth(): Promise<HealthResponse> {
         const response = await api.get<HealthResponse>('/api/health');
         return response.data;
+    },
+
+    // 获取文件列表
+    async listFiles(): Promise<FileResponse> {
+        const response = await api.get<FileResponse>('/api/files');
+        return response.data;
+    },
+
+    // 查看文件内容
+    async readFile(fileName: string): Promise<FileResponse> {
+        const response = await api.get<FileResponse>(`/api/files/${fileName}`);
+        return response.data;
+    },
+
+    // 创建或更新文件
+    async createOrUpdateFile(fileName: string, fileContent: string): Promise<FileResponse> {
+        const response = await api.put<FileResponse>(`/api/files/${fileName}`, {
+            file_name: fileName,
+            file_content: fileContent,
+        });
     },
     
     // 检查服务状态

@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "name": "HeteroLang",
+    "name": "HSCLang",
     "version": "0.1.0",
     "description": "A compiled language for heterogeneous simulation computing on FPGA, NPU, and GPU."
   },
