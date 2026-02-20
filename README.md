@@ -17,3 +17,5 @@ OpenHC
 |-- LICENSE
 |-- README.md
 ```
+
+# 学习项目，BUG 极多

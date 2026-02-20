@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package pngservice;
+
+option go_package = "./proto;pngservice";
+
+// 请求信息：指定起始帧和结束帧（或文件名列表）
+message PNGRequest {
+  int32 start_frame = 1;
+  int32 end_frame = 2;
+}
+
+message PNGChunk {
+  bytes data = 1;
+  int32 frame_index = 2;
+}
+
+service PNGService {
+  rpc GetPNGStream(PNGRequest) returns (stream PNGChunk);
+}
