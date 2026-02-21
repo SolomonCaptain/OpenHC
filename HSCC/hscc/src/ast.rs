@@ -1,7 +1,25 @@
 #[derive(Debug)]
 pub struct Program {
+    pub imports: Vec<Import>,
     pub functions: Vec<Function>,
     pub tasks: Vec<Task>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Path {
+    pub segments: Vec<PathSegment>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PathSegment {
+    pub ident: String,
+    pub generic_args: Option<Vec<Type>>,
+}
+
+#[derive(Debug)]
+pub struct Import {
+    pub path: Path,
+    pub alias: Option<String>,
 }
 
 #[derive(Debug)]
@@ -40,11 +58,12 @@ pub struct Param {
     pub ty: Type,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Type {
     I32, F32, Bool,
     Buffer(Box<Type>, Option<usize>),
     Named(String),
+    Tuple(Vec<Type>),
 }
 
 #[derive(Debug)]
@@ -62,12 +81,12 @@ pub enum Statement {
     },
     Return(Option<Expression>),
     Expr(Expression),
-    Spawn {
-        device: Option<Expression>,
-        task: Expression,
-        await_: bool,
-    },
     ParallelFor {
+        var: String,
+        range: (Expression, Expression),
+        body: Block,
+    },
+    For {
         var: String,
         range: (Expression, Expression),
         body: Block,
@@ -82,6 +101,7 @@ pub enum Expression {
     Bool(bool),
     Nil,
     Identifier(String),
+    Path(Path),
     Binary {
         left: Box<Expression>,
         op: BinaryOp,
@@ -94,6 +114,10 @@ pub enum Expression {
     FieldAccess {
         obj: Box<Expression>,
         field: String,
+    },
+    Index {
+        obj: Box<Expression>,
+        index: Box<Expression>,
     },
     MethodCall {
         obj: Box<Expression>,
@@ -109,6 +133,12 @@ pub enum Expression {
         device: Box<Expression>,
     },
     Await(Box<Expression>),
+    Array(Vec<Expression>),
+    Spawn {
+        device: Option<Box<Expression>>,
+        task: Box<Expression>,
+        await_: bool,
+    },
 }
 
 #[derive(Debug, Clone, Copy)]

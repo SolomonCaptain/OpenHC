@@ -42,7 +42,7 @@ fn main() -> () {
     let b_dev = b_host.move_to(GPU);
 
     // 在 GPU 上异步启动矩阵乘法任务，并等待结果
-    let c_dev = spawn on GPU::gpu_matmul(a_dev, b_dev).await;
+    let c_dev = spawn on GPU gpu_matmul(a_dev, b_dev).await;
 
     // 将结果矩阵从 GPU 移回主机内存
     let c_host = c_dev.move_to(Host);

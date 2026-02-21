@@ -13,6 +13,7 @@ use std::env;
 use std::fs;
 use std::path::Path;
 
+#[cfg(not(test))]
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
@@ -51,4 +52,31 @@ fn main() -> Result<()> {
     
     println!("Compilation successful! Executable: {}", exe_file.display());
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_buffer_parsing() {
+        let source = r#"
+import hsc::*;
+
+fn main() -> () {
+    let a = Buffer::<f32>::zeros([10, 10]);
+}
+"#;
+        
+        // 词法分析
+        let mut lexer = lexer::Lexer::new(source);
+        let tokens = lexer.tokenize();
+        
+        // 语法分析
+        let mut parser = parser::Parser::new(tokens);
+        let result = parser.parse_program();
+        
+        assert!(result.is_ok(), "Parsing failed: {:?}", result.err());
+        println!("Buffer parsing test passed!");
+    }
 }

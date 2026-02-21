@@ -1,7 +1,7 @@
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenKind {
     // 关键字
-    Fn, Let, Mut, If, Else, While, Loop, Break, Continue, Return, Task, Spawn, On, Await, Pipeline, Graph, Stage, Node, Edge, Parallel, For, Reduce, Scan, True, False, Nil, GPU, NPU, FPGA, CPU, Host, DeviceLocal, Unified, Pinned, Pattern, Policy, Body, Buffer, In,
+    Fn, Let, Mut, If, Else, While, Loop, Break, Continue, Return, Task, Spawn, On, Await, Pipeline, Graph, Stage, Node, Edge, Parallel, For, Reduce, Scan, True, False, Nil, GPU, NPU, FPGA, CPU, Host, DeviceLocal, Unified, Pinned, Pattern, Policy, Body, Buffer, In, Import, As,
     // 类型
     I8, I16, I32, I64, I128, U8, U16, U32, U64, U128, F32, F64, Bool, Char,
     // 符号
@@ -98,11 +98,21 @@ impl Lexer {
                         return self.next_token(); // 忽略注释
                     }
                 }
+                // 处理通配符 *
+                if c == '*' {
+                    // 检查是否是导入语句中的通配符（后面跟着分号或 ::）
+                    let next_char = self.chars.get(self.pos + 1);
+                    if next_char == Some(&';') || next_char == Some(&':') {
+                        self.bump();
+                        return Some(Token { kind: TokenKind::Star, line: start_line, column: start_col });
+                    }
+                }
+                
                 // 识别标识符和关键字
                 if c.is_alphabetic() || c == '_' {
                     let mut s = String::new();
                     while let Some(c) = self.peek() {
-                        if c.is_alphabetic() || c == '_' {
+                        if c.is_alphanumeric() || c == '_' {
                             s.push(c);
                             self.bump();
                         } else {
@@ -144,6 +154,11 @@ impl Lexer {
                         "DeviceLocal" => TokenKind::DeviceLocal,
                         "Unified" => TokenKind::Unified,
                         "Pinned" => TokenKind::Pinned,
+                        "pattern" => TokenKind::Pattern,
+                        "policy" => TokenKind::Policy,
+                        "body" => TokenKind::Body,
+                        "Buffer" => TokenKind::Buffer,
+                        "in" => TokenKind::In,
                         "i8" => TokenKind::I8,
                         "i16" => TokenKind::I16,
                         "i32" => TokenKind::I32,
@@ -158,6 +173,8 @@ impl Lexer {
                         "f64" => TokenKind::F64,
                         "bool" => TokenKind::Bool,
                         "char" => TokenKind::Char,
+                        "import" => TokenKind::Import,
+                        "as" => TokenKind::As,
                         _ => TokenKind::Identifier(s),
                     };
                     return Some(Token { kind, line: start_line, column: start_col });
@@ -173,8 +190,17 @@ impl Lexer {
                             break;
                         }
                     }
-                    // 检查是否浮点数
+                    // 检查是否浮点数，但要排除范围运算符 ..
                     if self.peek() == Some('.') {
+                        // 检查是否后面紧跟另一个点（即 .. 或 ...）
+                        if let Some(next_next) = self.chars.get(self.pos + 1) {
+                            if *next_next == '.' {
+                                // 这不是浮点数，是范围运算符的开头，返回整数
+                                // 注意：这里也需要检查后缀，但整数后面跟 .. 时不可能有后缀，所以直接返回
+                                return Some(Token { kind: TokenKind::Integer(s), line: start_line, column: start_col });
+                            }
+                        }
+                        // 否则是浮点数
                         s.push('.');
                         self.bump();
                         while let Some(c) = self.peek() {
@@ -202,8 +228,32 @@ impl Lexer {
                                 }
                             }
                         }
+                        // 处理浮点数后缀（如 f32、f64），只消耗不加入字符串
+                        if let Some(c) = self.peek() {
+                            if c.is_alphabetic() {
+                                while let Some(c) = self.peek() {
+                                    if c.is_alphanumeric() {
+                                        self.bump();
+                                    } else {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
                         return Some(Token { kind: TokenKind::Float(s), line: start_line, column: start_col });
                     } else {
+                        // 整数，处理后缀（如 u32、i64），只消耗不加入字符串
+                        if let Some(c) = self.peek() {
+                            if c.is_alphabetic() {
+                                while let Some(c) = self.peek() {
+                                    if c.is_alphanumeric() {
+                                        self.bump();
+                                    } else {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
                         return Some(Token { kind: TokenKind::Integer(s), line: start_line, column: start_col });
                     }
                 }

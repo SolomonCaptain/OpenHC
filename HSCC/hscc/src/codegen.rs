@@ -41,30 +41,48 @@ impl CodeGenerator {
         self.emitln("#include <cuda_runtime.h>");
         self.emitln("#include <stdio.h>");
         self.emitln("#include <stdlib.h>");
+        self.emitln("#include <vector>");
+        self.emitln("#include <cstring>");
         self.emitln("");
-        self.emitln("// Buffer 简单封装");
+        self.emitln("// 设备常量");
+        self.emitln("const int GPU = 0;");
+        self.emitln("const int CPU = -1;");
+        self.emitln("const int NPU = 1;");
+        self.emitln("const int FPGA = 2;");
+        self.emitln("const int Host = -1;");
+        self.emitln("");
+        self.emitln("// Buffer 封装，支持多维形状和主机/设备位置");
         self.emitln("template<typename T>");
         self.emitln("struct Buffer {");
         self.indent_inc();
         self.emitln("T* data;");
-        self.emitln("size_t size;");
-        self.emitln("int device;");
+        self.emitln("size_t size;        // 总元素个数");
+        self.emitln("int device;          // -1 表示主机，>=0 表示设备 ID");
+        self.emitln("std::vector<size_t> dims; // 各维度大小");
         self.emitln("");
-        self.emitln("__host__ __device__ Buffer() : data(nullptr), size(0), device(-1) {}");
-        self.emitln("__host__ __device__ Buffer(T* d, size_t s, int dev) : data(d), size(s), device(dev) {}");
+        self.emitln("Buffer() : data(nullptr), size(0), device(-1) {}");
+        self.emitln("~Buffer() { if (data) { if (device == -1) free(data); else cudaFree(data); } }");
+        self.emitln("Buffer(const Buffer&) = delete;");
+        self.emitln("Buffer& operator=(const Buffer&) = delete;");
+        self.emitln("Buffer(Buffer&& other) : data(other.data), size(other.size), device(other.device), dims(std::move(other.dims)) { other.data = nullptr; }");
+        self.emitln("Buffer& operator=(Buffer&& other) { if (this != &other) { if (data) { if (device == -1) free(data); else cudaFree(data); } data = other.data; size = other.size; device = other.device; dims = std::move(other.dims); other.data = nullptr; } return *this; }");
         self.emitln("");
-        self.emitln("static Buffer zero(size_t n) {");
+        self.emitln("static Buffer zeros(std::initializer_list<size_t> shape) {");
         self.indent_inc();
-        self.emitln("T* h_ptr = (T*)malloc(n * sizeof(T), cudaMemcpyHostToDevice);");
-        self.emitln("free(h_ptr);");
-        self.emitln("return Buffer(d_ptr, n, 0); // device 0");
+        self.emitln("Buffer buf;");
+        self.emitln("buf.dims = shape;");
+        self.emitln("buf.size = 1;");
+        self.emitln("for (auto d : shape) buf.size *= d;");
+        self.emitln("buf.data = (T*)malloc(buf.size * sizeof(T)); // 默认在主机");
+        self.emitln("memset(buf.data, 0, buf.size * sizeof(T));");
+        self.emitln("buf.device = -1;");
+        self.emitln("return buf;");
         self.indent_dec();
         self.emitln("}");
         self.emitln("");
         self.emitln("Buffer place_on(int dev) {");
         self.indent_inc();
-        self.emitln("// 简单实现：仅设置设备标记，实际不迁移");
-        self.emitln("this->device = dev;");
+        self.emitln("this->device = dev; // 仅设置设备标记，不迁移");
         self.emitln("return *this;");
         self.indent_dec();
         self.emitln("}");
@@ -72,16 +90,37 @@ impl CodeGenerator {
         self.emitln("Buffer move_to(int dev) {");
         self.indent_inc();
         self.emitln("if (dev == this->device) return *this;");
-        self.emitln("T* new_ptr == nullptr;");
+        self.emitln("T* new_ptr;");
+        self.emitln("if (dev == -1) { // 目标为主机");
+        self.indent_inc();
+        self.emitln("new_ptr = (T*)malloc(size * sizeof(T));");
+        self.emitln("cudaMemcpy(new_ptr, data, size * sizeof(T), cudaMemcpyDeviceToHost);");
+        self.emitln("cudaFree(data);");
+        self.indent_dec();
+        self.emitln("} else { // 目标为设备");
+        self.indent_inc();
         self.emitln("cudaMalloc(&new_ptr, size * sizeof(T));");
+        self.emitln("if (this->device == -1) {");
+        self.indent_inc();
+        self.emitln("cudaMemcpy(new_ptr, data, size * sizeof(T), cudaMemcpyHostToDevice);");
+        self.emitln("free(data);");
+        self.indent_dec();
+        self.emitln("} else {");
+        self.indent_inc();
         self.emitln("cudaMemcpy(new_ptr, data, size * sizeof(T), cudaMemcpyDeviceToDevice);");
         self.emitln("cudaFree(data);");
+        self.indent_dec();
+        self.emitln("}");
+        self.indent_dec();
+        self.emitln("}");
         self.emitln("this->data = new_ptr;");
         self.emitln("this->device = dev;");
         self.emitln("return *this;");
         self.indent_dec();
         self.emitln("}");
         self.emitln("");
+        self.emitln("const size_t* shape() const { return dims.data(); }");
+        self.emitln("size_t ndim() const { return dims.size(); }");
         self.emitln("T& operator[](size_t i) { return data[i]; }");
         self.emitln("const T& operator[](size_t i) const { return data[i]; }");
         self.indent_dec();
@@ -102,22 +141,33 @@ impl CodeGenerator {
     }
 
     fn generate_task_kernel(&mut self, task: &Task) {
+        // 内核名称
         let kernel_name = format!("{}_kernel", task.name);
+        // 从任务参数中提取 Buffer 类型参数名和维度
+        // 假设参数为 a: Buffer<f32>, b: Buffer<f32>，返回 Buffer<f32>
+        // 生成内核参数：指针 + 维度
         self.emitln(&format!("__global__ void {}(float* a, float* b, float* c, int M, int K, int N) {{", kernel_name));
         self.indent_inc();
-        self.emitln("int i = blockIdx.x * blockDim.x + threadIdx.x;");
-        self.emitln("int j = blockIdx.y * blockDim.y + threadIdx.y;");
-        self.emitln("if (i < M && j < N) {");
-        self.indent_inc();
-        self.emitln("float sum = 0.0f;");
-        self.emitln("for (int l = 0; l < K; ++l) {");
-        self.indent_inc();
-        self.emitln("sum += a[i * K + l] * b[l * N + j];");
-        self.indent_dec();
-        self.emitln("}");
-        self.emitln("c[i * N + j] = sum;");
-        self.indent_dec();
-        self.emitln("}");
+        
+        // 遍历任务体中的 parallel for 语句
+        for stmt in &task.body.statements {
+            if let Statement::ParallelFor { var, range: _, body } = stmt {
+                // 生成线程索引
+                self.emitln(&format!("int {} = blockIdx.x * blockDim.x + threadIdx.x;", var));
+                self.emitln(&format!("if ({} < M) {{", var));
+                self.indent_inc();
+                // 生成内部循环体
+                for inner_stmt in &body.statements {
+                    self.generate_statement(inner_stmt);
+                }
+                self.indent_dec();
+                self.emitln("}");
+            } else {
+                // 其他语句直接生成
+                self.generate_statement(stmt);
+            }
+        }
+        
         self.indent_dec();
         self.emitln("}");
         self.emitln("");
@@ -160,41 +210,24 @@ impl CodeGenerator {
                 }
                 self.emitln(";");
             }
-            Statement::Spawn { device: _device, task, await_ } => {
-                // 解析任务调用
-                if let Expression::Call { func, args } = task {
-                    if let Expression::Identifier(task_name) = func.as_ref() {
-                        if task_name == "gpu_matmul" {
-                            // 假设 args: a, b
-                            let a_expr = &args[0];
-                            let b_expr = &args[1];
-                            self.emit("// Spawn task\n");
-                            self.emit("Buffer<float> c;\n");
-                            self.emit("{\n");
-                            self.indent_inc();
-                            self.emit("float* a_ptr = ");
-                            self.generate_expression(a_expr);
-                            self.emitln(".data;");
-                            self.emit("float* b_ptr = ");
-                            self.generate_expression(b_expr);
-                            self.emitln(".data;");
-                            self.emitln("int M = 1024; int K = 1024; int N = 1024; // 固定尺寸");
-                            self.emitln("cudaMalloc(&c.data, M*N*sizeof(float));");
-                            self.emitln("c.size = M*N;");
-                            self.emitln("dim3 block(16,16);");
-                            self.emitln("dim3 grid((M+15)/16, (N+15)/16);");
-                            self.emitln(&format!("{}_kernel<<<grid, block>>>(a_ptr, b_ptr, c.data, M, K, N);", task_name));
-                            if *await_ {
-                                self.emitln("cudaDeviceSynchronize();");
-                            }
-                            self.indent_dec();
-                            self.emitln("}");
-                        }
-                    }
-                }
-            }
             Statement::ParallelFor { var: _var, range: _range, body: _body } => {
                 // 忽略，已经在 kernel 中实现
+            }
+            Statement::For { var, range, body } => {
+                self.emit(&format!("for (int {} = ", var));
+                self.generate_expression(&range.0);
+                self.emit("; ");
+                self.emit(&format!("{} < ", var));
+                self.generate_expression(&range.1);
+                self.emit("; ");
+                self.emit(&format!("{}++) ", var));
+                self.emitln("{");
+                self.indent_inc();
+                for stmt in &body.statements {
+                    self.generate_statement(stmt);
+                }
+                self.indent_dec();
+                self.emitln("}");
             }
             _ => {}
         }
@@ -208,6 +241,25 @@ impl CodeGenerator {
             Expression::Bool(b) => self.emit(if *b { "true" } else { "false" }),
             Expression::Nil => self.emit("nullptr"),
             Expression::Identifier(id) => self.emit(id),
+            Expression::Path(path) => {
+                // 生成路径，例如 hsc::*
+                for (i, segment) in path.segments.iter().enumerate() {
+                    if i > 0 {
+                        self.emit("::");
+                    }
+                    self.emit(&segment.ident);
+                    if let Some(generic_args) = &segment.generic_args {
+                        self.emit("<");
+                        for (j, arg) in generic_args.iter().enumerate() {
+                            if j > 0 {
+                                self.emit(", ");
+                            }
+                            self.emit("float"); // 简化处理，假设都是 float
+                        }
+                        self.emit(">");
+                    }
+                }
+            }
             Expression::Binary { left, op, right } => {
                 self.emit("(");
                 self.generate_expression(left);
@@ -229,6 +281,45 @@ impl CodeGenerator {
                 self.emit(")");
             }
             Expression::Call { func, args } => {
+                // 特殊处理内置函数
+                let func_name = match func.as_ref() {
+                    Expression::Path(path) => path.segments.last().unwrap().ident.as_str(),
+                    Expression::Identifier(id) => id.as_str(),
+                    _ => "",
+                };
+                if func_name == "log!" {
+                    // 生成 printf
+                    self.emit("printf(");
+                    self.generate_expression(&args[0]);
+                    for arg in &args[1..] {
+                        self.emit(", ");
+                        self.generate_expression(arg);
+                    }
+                    self.emit(")");
+                    return;
+                } else if func_name == "save_output" {
+                    // 生成文件写入
+                    self.emitln("{");
+                    self.indent_inc();
+                    self.emit("const char* path = ");
+                    self.generate_expression(&args[0]);
+                    self.emitln(";");
+                    self.emit("Buffer<float> data = ");
+                    self.generate_expression(&args[1]);
+                    self.emitln(";");
+                    self.emitln("FILE* f = fopen(path, \"wb\");");
+                    self.emitln("if (f) {");
+                    self.indent_inc();
+                    self.emitln("fwrite(data.data, sizeof(float), data.size, f);");
+                    self.emitln("fclose(f);");
+                    self.indent_dec();
+                    self.emitln("}");
+                    self.indent_dec();
+                    self.emit("}");
+                    return;
+                }
+
+                // 普通函数调用
                 self.generate_expression(func);
                 self.emit("(");
                 for (i, arg) in args.iter().enumerate() {
@@ -242,6 +333,12 @@ impl CodeGenerator {
             Expression::FieldAccess { obj, field } => {
                 self.generate_expression(obj);
                 self.emit(&format!(".{}", field));
+            }
+            Expression::Index { obj, index } => {
+                self.generate_expression(obj);
+                self.emit("[");
+                self.generate_expression(index);
+                self.emit("]");
             }
             Expression::MethodCall { obj, method, args } => {
                 self.generate_expression(obj);
@@ -269,6 +366,66 @@ impl CodeGenerator {
             Expression::Await(expr) => {
                 self.generate_expression(expr);
                 // 在 spawn 中处理 await
+            }
+            Expression::Array(elems) => {
+                self.emit("{");
+                for (i, elem) in elems.iter().enumerate() {
+                    if i > 0 {
+                        self.emit(", ");
+                    }
+                    self.generate_expression(elem);
+                }
+                self.emit("}");
+            }
+            Expression::Spawn { device, task, await_ } => {
+                if let Expression::Call { func, args } = task.as_ref() {
+                    if let Expression::Path(path) = func.as_ref() {
+                        let task_name = path.segments.last().unwrap().ident.clone();
+                        self.emit("[&]() -> Buffer<float> {");
+                        self.indent_inc();
+                        self.emitln("");
+                        // 提取维度
+                        self.emit("int M = ");
+                        self.generate_expression(&args[0]);
+                        self.emitln(".shape()[0];");
+                        self.emit("int K = ");
+                        self.generate_expression(&args[0]);
+                        self.emitln(".shape()[1];");
+                        self.emit("int N = ");
+                        self.generate_expression(&args[1]);
+                        self.emitln(".shape()[1];");
+                        // 分配结果缓冲区
+                        self.emitln("Buffer<float> c = Buffer<float>::zeros({M, N});");
+                        if let Some(dev_expr) = device {
+                            self.emit("c = c.move_to(");
+                            self.generate_expression(dev_expr);
+                            self.emitln(");");
+                        }
+                        // 获取指针
+                        self.emit("float* a_ptr = ");
+                        self.generate_expression(&args[0]);
+                        self.emitln(".data;");
+                        self.emit("float* b_ptr = ");
+                        self.generate_expression(&args[1]);
+                        self.emitln(".data;");
+                        self.emit("float* c_ptr = c.data;");
+                        // 启动内核
+                        self.emitln("dim3 block(16, 16);");
+                        self.emitln("dim3 grid((M + 15) / 16, (N + 15) / 16);");
+                        self.emitln(&format!("{}_kernel<<<grid, block>>>(a_ptr, b_ptr, c_ptr, M, K, N);", task_name));
+                        if *await_ {
+                            self.emitln("cudaDeviceSynchronize();");
+                        }
+                        self.emitln("return c;");
+                        self.indent_dec();
+                        self.emit("}()");
+                    } else {
+                        // 错误处理
+                        self.emit("/* invalid spawn task */");
+                    }
+                } else {
+                    self.emit("/* invalid spawn call */");
+                }
             }
         }
     }
