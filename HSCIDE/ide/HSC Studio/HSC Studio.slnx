@@ -1,0 +1,10 @@
+<Solution>
+  <Configurations>
+    <Platform Name="ARM64" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="HSC Studio/HSC Studio.vcxproj" Id="8dc0c85c-4f0c-4695-87e6-96dad4e99a9a">
+    <Deploy />
+  </Project>
+</Solution>
