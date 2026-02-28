@@ -1,0 +1,196 @@
+---
+# Clang-Format 配置文件
+# 用于 C++ 代码格式化
+
+# 基于 Google 风格，但做一些调整
+BasedOnStyle: Google
+
+# 使用的语言
+Language: Cpp
+
+# 标准版本
+Standard: c++20
+
+# 访问修饰符缩进
+AccessModifierOffset: -4
+
+# 对齐数组初始化器
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignConsecutiveMacros: false
+AlignEscapedNewlines: Left
+AlignOperands: true
+AlignTrailingComments: true
+
+# 允许所有参数在声明行上
+AllowAllArgumentsOnNextLine: true
+AllowAllConstructorInitializersOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: true
+
+# 允许短块在同一行
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+# 总是在模板声明后换行
+AlwaysBreakAfterReturnType: None
+AlwaysBreakBeforeMultilineStrings: false
+AlwaysBreakTemplateDeclarations: Yes
+
+# 二进制运算符对齐
+BinPackArguments: true
+BinPackParameters: true
+
+# 大括号换行风格
+BreakBeforeBinaryOperators: None
+BreakBeforeBraces: Attach
+BreakBeforeConceptDeclarations: Always
+BreakBeforeTernaryOperators: true
+BreakConstructorInitializers: BeforeColon
+BreakInheritanceList: BeforeColon
+
+# 字符串对齐
+BreakStringLiterals: true
+
+# 列宽
+ColumnLimit: 120
+
+# 紧凑命名空间
+CompactNamespaces: false
+
+# 构造函数初始化列表
+ConstructorInitializerAllOnOneLineOrOnePerLine: false
+ConstructorInitializerIndentWidth: 4
+
+# 延续缩进宽度
+ContinuationIndentWidth: 4
+
+# 缩减大括号
+Cpp11BracedListStyle: true
+
+# 派生指针对齐
+DerivePointerAlignment: false
+
+# 禁用格式化
+DisableFormat: false
+
+# 枚举类缩进
+EnumDeclOneLiner: false
+EnumDeclOneLine: false
+
+# 实验性自动检测
+ExperimentalAutoDetectBinPacking: false
+
+# 固定命名空间注释
+FixNamespaceComments: true
+
+# foreach 宏
+ForEachMacros:
+  - foreach
+  - Q_FOREACH
+  - BOOST_FOREACH
+
+# 包含排序
+IncludeBlocks: Preserve
+IncludeCategories:
+  - Regex:           '^"(Live2D|winrt|Windows|Microsoft)/'
+    Priority:        1
+  - Regex:           '^"<'
+    Priority:        2
+  - Regex:           '^"'
+    Priority:        3
+  - Regex:           '^<(d3d12|dxgi|d3dx12|wrl|wincodec)/'
+    Priority:        4
+  - Regex:           '^<'
+    Priority:        5
+IncludeIsMainRegex: '(Test)?$'
+
+# 包含排序
+IncludeIsMainSourceRegex: ''
+SortIncludes: true
+
+# 缩进大小
+IndentCaseLabels: false
+IndentCaseBlocks: false
+IndentGotoLabels: true
+IndentPPDirectives: None
+IndentWidth: 4
+IndentWrappedFunctionNames: false
+
+# 插入尾随逗号
+InsertTrailingCommas: Wrapped
+
+# Java 导入分组
+JavaImportGroups: ''
+
+# 保留块
+KeepEmptyLinesAtTheStartOfBlocks: true
+
+# 宏定义开始
+MacroBlockBegin: ''
+MacroBlockEnd: ''
+
+# 最大空行
+MaxEmptyLinesToKeep: 1
+
+# 命名空间缩进
+NamespaceIndentation: None
+
+# 命名空间宏
+NamespaceMacros: []
+
+# 指针对齐
+PointerAlignment: Left
+
+# 引用对齐
+ReferenceAlignment: Left
+
+# 重排序包含
+ReorderIncludes: true
+
+# 短函数行
+ShortFunctionLines: 5
+
+# 空格
+SpaceAfterCStyleCast: false
+SpaceAfterLogicalNot: false
+SpaceAfterTemplateKeyword: true
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCpp11BracedList: false
+SpaceBeforeCtorInitializerColon: true
+SpaceBeforeInheritanceColon: true
+SpaceBeforeParens: ControlStatements
+SpaceBeforeRangeBasedForLoopColon: true
+SpaceInEmptyParentheses: false
+SpacesBeforeTrailingComments: 2
+SpacesInAngles: false
+SpacesInCStyleCastParentheses: false
+SpacesInContainerLiterals: true
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+# 标准格式
+Standard: c++20
+
+# Tab 键
+TabWidth: 4
+UseTab: Never
+
+# C++ 风格指针
+PointerBindsToType: false
+
+# 引用绑定
+ReferenceBindsToType: false
+
+# Windows 特定
+MicrosoftTypo:
+  enable: false
+
+# 排序 using 声明
+SortUsingDeclarations: true
+
+# 注释缩进
+ReflowComments: true

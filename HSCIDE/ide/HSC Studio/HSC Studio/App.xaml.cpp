@@ -38,6 +38,20 @@ namespace winrt::HSC_Studio::implementation
     void App::OnLaunched([[maybe_unused]] LaunchActivatedEventArgs const& e)
     {
         window = make<MainWindow>();
+
+        // 添加 Loaded 和 Unloaded 事件处理
+        window.Loaded([](IInspectable const& sender, RoutedEventArgs const& args)
+        {
+            auto mainWindow = sender.as<MainWindow>();
+            mainWindow.OnLoaded(sender, args);
+        });
+
+        window.Unloaded([](IInspectable const& sender, RoutedEventArgs const& args)
+        {
+            auto mainWindow = sender.as<MainWindow>();
+            mainWindow.OnUnloaded(sender, args);
+        });
+
         window.Activate();
     }
 }

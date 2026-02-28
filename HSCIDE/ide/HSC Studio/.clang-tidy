@@ -1,0 +1,113 @@
+---
+# Clang-Tidy 配置文件
+# 用于 C++ 代码静态分析和质量检查
+
+# 禁用的检查（可根据需要启用）
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-branch-clone,
+  -bugprone-macro-parentheses,
+  -bugprone-multi-legged-continue,
+  -bugprone-signed-char-misuse,
+  cert-*,
+  -cert-dcl03-c,
+  -cert-dcl21-cpp,
+  -cert-dcl50-cpp,
+  -cert-dcl58-cpp,
+  -cert-err58-cpp,
+  -cert-msc30-c,
+  -cert-msc50-cpp,
+  cppcoreguidelines-*,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-avoid-c-arrays,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-pro-type-cstyle-cast,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -cppcoreguidelines-pro-type-vararg,
+  -cppcoreguidelines-special-member-functions,
+  -cppcoreguidelines-owning-memory,
+  modernize-*,
+  -modernize-avoid-c-arrays,
+  -modernize-use-trailing-return-type,
+  -modernize-use-auto,
+  -modernize-use-nodiscard,
+  -modernize-raw-string-literal,
+  -modernize-pass-by-value,
+  performance-*,
+  -performance-unnecessary-value-param,
+  -performance-move-const-arg,
+  readability-*,
+  -readability-identifier-length,
+  -readability-magic-numbers,
+  -readability-function-cognitive-complexity,
+  -readability-convert-member-functions-to-static,
+  -readability-use-anyofallof,
+  -readability-isolate-declaration,
+  -readability-simplify-boolean-expr,
+  misc-*,
+  -misc-non-private-member-variables-in-classes,
+  google-*,
+  -google-readability-todo,
+  -google-runtime-references,
+  -google-build-using-namespace,
+  -google-readability-casting,
+  clang-analyzer-*,
+  -clang-analyzer-alpha*
+
+# 警告作为错误（可选）
+WarningsAsErrors: ''
+
+# 头文件过滤器
+HeaderFilterRegex: '.*'
+
+# 系统头文件
+SystemHeaders: false
+
+# 检查格式（编译命令样式）
+FormatStyle: file
+
+# 使用默认检查
+CheckOptions:
+  # 关键字
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.StructCase
+    value: CamelCase
+  - key: readability-identifier-naming.FunctionCase
+    value: CamelCase
+  - key: readability-identifier-naming.VariableCase
+    value: lower_case
+  - key: readability-identifier-naming.ParameterCase
+    value: lower_case
+  - key: readability-identifier-naming.MemberCase
+    value: lower_case
+  - key: readability-identifier-naming.PrivateMemberPrefix
+    value: m_
+  - key: readability-identifier-naming.ProtectedMemberPrefix
+    value: m_
+  - key: readability-identifier-naming.ConstantCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.EnumConstantCase
+    value: CamelCase
+  - key: readability-identifier-naming.GlobalConstantCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.GlobalVariableCase
+    value: lower_case
+  - key: readability-identifier-naming.NamespaceCase
+    value: CamelCase
+
+  # 现代 C++ 特性
+  - key: modernize-use-nullptr.NullMacros
+    value: 'NULL'
+
+  # 性能相关
+  - key: performance-no-int-to-ptr.InferTypes
+    value: '1'
+
+  # 命名约定例外
+  - key: readability-identifier-naming.IgnoreMainLikeFunctions
+    value: '1'

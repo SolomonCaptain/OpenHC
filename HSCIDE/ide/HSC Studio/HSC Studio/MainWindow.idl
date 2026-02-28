@@ -4,6 +4,11 @@ namespace HSC_Studio
     runtimeclass MainWindow : Microsoft.UI.Xaml.Window
     {
         MainWindow();
-        Int32 MyProperty;
+        void OnLoaded(Object sender, RoutedEventArgs args);
+        void OnLoadModel(Object sender, RoutedEventArgs args);
+        void OnChangeParam(Object sender, RoutedEventArgs args);
+        void OnResetParam(Object sender, RoutedEventArgs args);
+        void OnCompositionRendering(Object sender, Object args);
+        void OnUnloaded(Object sender, RoutedEventArgs args);
     }
 }

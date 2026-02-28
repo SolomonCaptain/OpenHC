@@ -10,6 +10,19 @@
     Title="HSC Studio">
 
     <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
+        <!-- 工具栏 -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Padding="10" Background="{ThemeResource SystemControlBackgroundAltMediumBrush}">
+            <Button x:Name="LoadModelButton" Content="加载模型" Click="OnLoadModel" Margin="0,0,10,0"/>
+            <Button x:Name="ChangeParamButton" Content="改变参数" Click="OnChangeParam" Margin="0,0,10,0"/>
+            <Button x:Name="ResetParamButton" Content="重置参数" Click="OnResetParam"/>
+        </StackPanel>
+
+        <!-- Live2D 渲染区域 -->
+        <SwapChainPanel x:Name="Live2DPanel" Grid.Row="1" Background="Transparent"/>
     </Grid>
 </Window>

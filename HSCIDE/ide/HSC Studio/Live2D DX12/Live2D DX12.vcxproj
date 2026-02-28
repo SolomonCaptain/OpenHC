@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="..\packages\Microsoft.Windows.SDK.BuildTools.MSIX.1.7.251221100\build\Microsoft.Windows.SDK.BuildTools.MSIX.props" Condition="Exists('..\packages\Microsoft.Windows.SDK.BuildTools.MSIX.1.7.251221100\build\Microsoft.Windows.SDK.BuildTools.MSIX.props')" />
   <Import Project="..\packages\Microsoft.Direct3D.D3D12.1.619.0\build\native\Microsoft.Direct3D.D3D12.props" Condition="Exists('..\packages\Microsoft.Direct3D.D3D12.1.619.0\build\native\Microsoft.Direct3D.D3D12.props')" />
   <Import Project="..\packages\Microsoft.Windows.SDK.BuildTools.10.0.26100.7705\build\Microsoft.Windows.SDK.BuildTools.props" Condition="Exists('..\packages\Microsoft.Windows.SDK.BuildTools.10.0.26100.7705\build\Microsoft.Windows.SDK.BuildTools.props')" />
@@ -18,25 +18,19 @@
     <CppWinRTOptimized>true</CppWinRTOptimized>
     <CppWinRTRootNamespaceAutoMerge>true</CppWinRTRootNamespaceAutoMerge>
     <MinimalCoreWin>true</MinimalCoreWin>
-    <ProjectGuid>{8dc0c85c-4f0c-4695-87e6-96dad4e99a9a}</ProjectGuid>
-    <ProjectName>HSC Studio</ProjectName>
-    <RootNamespace>HSC_Studio</RootNamespace>
-    <!--
-      $(TargetName) should be same as $(RootNamespace) so that the produced binaries (.exe/.pri/etc.)
-      have a name that matches the .winmd
-    -->
-    <TargetName>$(RootNamespace)</TargetName>
+    <ProjectGuid>{5aea5541-3895-4666-9ec0-1dae823cde81}</ProjectGuid>
+    <ProjectName>Live2D DX12</ProjectName>
+    <RootNamespace>Live2D_DX12</RootNamespace>
     <DefaultLanguage>zh-CN</DefaultLanguage>
     <MinimumVisualStudioVersion>16.0</MinimumVisualStudioVersion>
     <AppContainerApplication>false</AppContainerApplication>
-    <AppxPackage>true</AppxPackage>
     <ApplicationType>Windows Store</ApplicationType>
     <ApplicationTypeRevision>10.0</ApplicationTypeRevision>
-    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion Condition=" '$(WindowsTargetPlatformVersion)' == '' ">10.0.26100.0</WindowsTargetPlatformVersion>
     <WindowsTargetPlatformMinVersion>10.0.17763.0</WindowsTargetPlatformMinVersion>
+    <DesktopCompatible>true</DesktopCompatible>
     <UseWinUI>true</UseWinUI>
     <WinUISDKReferences>false</WinUISDKReferences>
-    <EnableMsixTooling>true</EnableMsixTooling>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <ItemGroup Label="ProjectConfigurations">
@@ -66,10 +60,11 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
     <PlatformToolset Condition="'$(VisualStudioVersion)' &gt;= '18.0'">v145</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' &lt; '18.0'">v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
+    <GenerateManifest>false</GenerateManifest>
     <DesktopCompatible>true</DesktopCompatible>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Debug'" Label="Configuration">
@@ -84,10 +79,13 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
   <ImportGroup Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup />
   <ItemDefinitionGroup>
     <ClCompile>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -97,9 +95,15 @@
       <LanguageStandard Condition="'$(VisualStudioVersion)' &gt;= '18.0'">stdcpp20</LanguageStandard>
       <LanguageStandard Condition="'$(VisualStudioVersion)' &lt; '18.0'">stdcpp17</LanguageStandard>
       <AdditionalOptions>%(AdditionalOptions) /bigobj</AdditionalOptions>
+      <PreprocessorDefinitions>_WINRT_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalUsingDirectories>$(WindowsSDK_WindowsMetadata);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\external\CubismSdkForNative-5-r.4.1\Core\include;..\Live2D Lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;windowsapp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SubSystem>Console</SubSystem>
+      <GenerateWindowsMetadata>true</GenerateWindowsMetadata>
+      <ModuleDefinitionFile>Live2D_DX12.def</ModuleDefinitionFile>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
@@ -116,54 +120,29 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup Condition="'$(WindowsPackageType)'!='None' and Exists('Package.appxmanifest')">
-    <AppxManifest Include="Package.appxmanifest">
-      <SubType>Designer</SubType>
-    </AppxManifest>
-  </ItemGroup>
   <ItemGroup>
-    <Manifest Include="app.manifest" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="HomePage.xaml.h">
-      <DependentUpon>HomePage.xaml</DependentUpon>
-    </ClInclude>
+    <ClInclude Include="Live2DModel.g.h" />
     <ClInclude Include="pch.h" />
-    <ClInclude Include="App.xaml.h">
-      <DependentUpon>App.xaml</DependentUpon>
+    <ClInclude Include="Class.h">
+      <DependentUpon>Class.cpp</DependentUpon>
     </ClInclude>
-    <ClInclude Include="MainWindow.xaml.h">
-      <DependentUpon>MainWindow.xaml</DependentUpon>
-    </ClInclude>
-    <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
-    <ApplicationDefinition Include="App.xaml" />
-    <Page Include="HomePage.xaml">
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Include="MainWindow.xaml" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="HomePage.xaml.cpp">
-      <DependentUpon>HomePage.xaml</DependentUpon>
-    </ClCompile>
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="App.xaml.cpp">
-      <DependentUpon>App.xaml</DependentUpon>
-    </ClCompile>
-    <ClCompile Include="MainWindow.xaml.cpp">
-      <DependentUpon>MainWindow.xaml</DependentUpon>
-    </ClCompile>
+    <ClCompile Include="Class.cpp" />
     <ClCompile Include="$(GeneratedFilesDir)module.g.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <Midl Include="MainWindow.idl">
+    <Midl Include="Class.idl">
       <SubType>Code</SubType>
-      <DependentUpon>MainWindow.xaml</DependentUpon>
+      <DependentUpon>Class.cpp</DependentUpon>
     </Midl>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Live2D_DX12.def" />
+    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="readme.txt">
@@ -171,50 +150,10 @@
     </Text>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="Assets\Characters\爱莉希雅\MaidCyrene.4096\texture_00.png" />
-    <Image Include="Assets\Characters\爱莉希雅\MaidCyrene.4096\texture_01.png" />
-    <Image Include="Assets\Characters\爱莉希雅\MaidCyrene.4096\texture_02.png" />
-    <Image Include="Assets\Characters\爱莉希雅\MaidCyrene.4096\texture_03.png" />
-    <Image Include="Assets\Characters\爱莉希雅\MaidCyrene.4096\texture_04.png" />
-    <Image Include="Assets\LockScreenLogo.scale-200.png" />
-    <Image Include="Assets\SplashScreen.scale-200.png" />
-    <Image Include="Assets\Square150x150Logo.scale-200.png" />
-    <Image Include="Assets\Square44x44Logo.scale-200.png" />
-    <Image Include="Assets\Square44x44Logo.targetsize-24_altform-unplated.png" />
-    <Image Include="Assets\StoreLogo.png" />
-    <Image Include="Assets\Wide310x150Logo.scale-200.png" />
-  </ItemGroup>
-  <!--
-    Defining the "Msix" ProjectCapability here allows the Single-project MSIX Packaging
-    Tools extension to be activated for this project even if the Windows App SDK Nuget
-    package has not yet been restored.
-  -->
-  <ItemGroup Condition="'$(DisableMsixProjectCapabilityAddedByProject)'!='true' and '$(EnableMsixTooling)'=='true'">
-    <ProjectCapability Include="Msix" />
-  </ItemGroup>
-  <!--
-    Defining the "HasPackageAndPublishMenuAddedByProject" property here allows the Solution
-    Explorer "Package and Publish" context menu entry to be enabled for this project even if
-    the Windows App SDK Nuget package has not yet been restored.
-  -->
-  <ItemGroup>
-    <None Include="Assets\Characters\爱莉希雅\MaidCyrene.cdi3.json" />
-    <None Include="Assets\Characters\爱莉希雅\MaidCyrene.moc3" />
-    <None Include="Assets\Characters\爱莉希雅\MaidCyrene.model3.json" />
-    <None Include="Assets\Characters\爱莉希雅\MaidCyrene.physics3.json" />
-    <None Include="packages.config" />
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="HSC Studio.rc" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\Live2D DX12\Live2D DX12.vcxproj">
-      <Project>{5aea5541-3895-4666-9ec0-1dae823cde81}</Project>
+    <ProjectReference Include="..\Live2D Lib\Live2D Lib.vcxproj">
+      <Project>{38cb2ff8-ec05-47c9-9e11-18603293964c}</Project>
     </ProjectReference>
   </ItemGroup>
-  <PropertyGroup Condition="'$(DisableHasPackageAndPublishMenuAddedByProject)'!='true' and '$(EnableMsixTooling)'=='true'">
-    <HasPackageAndPublishMenu>true</HasPackageAndPublishMenu>
-  </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
     <Import Project="..\packages\Microsoft.WindowsAppSDK.Base.1.8.251216001\build\native\Microsoft.WindowsAppSDK.Base.targets" Condition="Exists('..\packages\Microsoft.WindowsAppSDK.Base.1.8.251216001\build\native\Microsoft.WindowsAppSDK.Base.targets')" />

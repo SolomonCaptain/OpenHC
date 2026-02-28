@@ -1,19 +1,29 @@
-#pragma once
-
+﻿#pragma once
 #include "MainWindow.g.h"
+#include <winrt/Windows.UI.Xaml.Controls.h>
+#include <chrono>
 
 namespace winrt::HSC_Studio::implementation
 {
     struct MainWindow : MainWindowT<MainWindow>
     {
-        MainWindow()
-        {
-            // Xaml objects should not call InitializeComponent during construction.
-            // See https://github.com/microsoft/cppwinrt/tree/master/nuget#initializecomponent
-        }
+        MainWindow();
+        void OnLoaded(IInspectable const&, RoutedEventArgs const&);
+        void OnLoadModel(IInspectable const&, RoutedEventArgs const&);
+        void OnChangeParam(IInspectable const&, RoutedEventArgs const&);
+        void OnResetParam(IInspectable const&, RoutedEventArgs const&);
+        void OnCompositionRendering(IInspectable const&, IInspectable const&);
+        void OnUnloaded(IInspectable const&, RoutedEventArgs const&);
 
-        int32_t MyProperty();
-        void MyProperty(int32_t value);
+    private:
+        winrt::Live2DWinRT::Live2DModel m_model{ nullptr };
+        winrt::Windows::UI::Xaml::Controls::SwapChainPanel m_panel{ nullptr };
+        winrt::event_token m_renderingToken;
+        std::chrono::steady_clock::time_point m_lastTime;
+        bool m_isModelLoaded{ false };
+
+        void UpdateModel(float deltaTime);
+        void RenderModel();
     };
 }
 
