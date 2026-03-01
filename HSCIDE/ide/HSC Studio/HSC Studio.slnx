@@ -1,14 +1,3 @@
 <Solution>
-  <Configurations>
-    <Platform Name="ARM64" />
-    <Platform Name="x64" />
-    <Platform Name="x86" />
-  </Configurations>
-  <Project Path="HSC Studio/HSC Studio.vcxproj" Id="8dc0c85c-4f0c-4695-87e6-96dad4e99a9a">
-    <Deploy />
-  </Project>
-  <Project Path="Live2D DX12/Live2D DX12.vcxproj" Id="5aea5541-3895-4666-9ec0-1dae823cde81" />
-  <Project Path="Live2D Lib/Live2D Lib.vcxproj" Id="38cb2ff8-ec05-47c9-9e11-18603293964c">
-    <Platform Solution="*|ARM64" Project="x64" />
-  </Project>
+  <Project Path="HSC Studio/HSC Studio.csproj" />
 </Solution>

@@ -1,8 +1,3 @@
-x64/
-packages/
 .vs/
-HSC Studio/x64/
-HSC Studio/Generated Files/
-Live2D DX12/Generated Files/
-.vscode/
-external/
+HSC Studio/bin/
+HSC Studio/obj/
