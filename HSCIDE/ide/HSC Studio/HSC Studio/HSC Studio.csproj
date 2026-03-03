@@ -6,7 +6,6 @@
         <RootNamespace>HSC_Studio</RootNamespace>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
-        <UseWPF>true</UseWPF>
     </PropertyGroup>
 
     <ItemGroup>

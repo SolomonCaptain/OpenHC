@@ -1,0 +1,132 @@
+import hetero::*;
+import devices::{A100, Ascend910, VU9P};  // 具体设备型号
+
+// 物理场定义
+struct FlowField {
+    @GPU   // 主要驻留在GPU内存
+    velocity: Buffer<f32, 3>,  // 三维速度场
+    
+    @NPU   // 主要驻留在NPU内存
+    turbulence: Buffer<f32, 3>, // 湍流参数
+    
+    @FPGA  // 主要驻留在FPGA BRAM
+    boundary: Buffer<f32, 2>,   // 边界条件
+}
+
+// 仿真参数
+struct SimParams {
+    dt: f32,           // 时间步长
+    max_steps: i32,    // 最大步数
+    convergence: f32,  // 收敛阈值
+}
+
+// 主仿真任务
+task CfdAiSimulation {
+    pattern: TaskGraph {
+        independent: false,  // 任务间有依赖
+    }
+    
+    policy: Adaptive {  // 自适应调度 [citation:8]
+        initial_device: "gpu",
+        recursive_split: true,  // 允许动态拆分任务
+        load_balancing: true,   // 动态负载均衡
+    }
+    
+    body(params: SimParams, field: FlowField) -> FlowField {
+        // 初始化
+        let t = 0;
+        let error = INFINITY;
+        
+        // 任务图构建
+        while t < params.max_steps && error > params.convergence {
+            // 步骤1: FPGA处理边界条件（低延迟实时处理）
+            let boundary_updated = task FPGA::update_boundary {
+                input: field.boundary,
+                output: new_boundary,
+                
+                // FPGA特定优化
+                pipeline_depth: 8,
+                dsp_usage: "balanced",
+            };
+            
+            // 步骤2: GPU求解NS方程（计算密集）
+            let flow_updated = task GPU::solve_navier_stokes {
+                input: (field.velocity, boundary_updated),
+                output: new_velocity,
+                
+                // GPU特定优化
+                block_size: (256, 1, 1),
+                shared_memory: 48.kb,
+                stream_priority: "high",
+            };
+            
+            // 步骤3: NPU预测湍流（AI加速）
+            let turb_predicted = task NPU::predict_turbulence {
+                input: (field.turbulence, flow_updated),
+                output: new_turbulence,
+                
+                // NPU特定优化
+                model: "turbulence_cnn_v3",
+                batch_size: 16,
+                precision: "mixed",
+            };
+            
+            // 步骤4: 误差估计（可在CPU或任意设备）
+            error = task estimate_error {
+                input: (flow_updated, turb_predicted),
+                output: error_value,
+                
+                // 设备无关，运行时决定
+                device_hint: Any,
+            };
+            
+            // 更新场数据（自动处理依赖）
+            field.velocity = flow_updated;
+            field.turbulence = turb_predicted;
+            
+            t += 1;
+            
+            // 每100步输出状态
+            if t % 100 == 0 {
+                log!("Step {}: error = {}", t, error);
+            }
+        }
+        
+        // 返回最终结果
+        field
+    }
+}
+
+// 主函数
+fn main() -> Result<()> {
+    // 检测可用设备
+    let devices = hetero::probe_devices();
+    println!("Detected devices: {}", devices);
+    
+    // 配置仿真
+    let params = SimParams {
+        dt: 0.01,
+        max_steps: 10000,
+        convergence: 1e-6,
+    };
+    
+    // 初始化流场
+    let field = FlowField {
+        velocity: Buffer::zeros([1024, 1024, 1024])?.place_on(GPU),
+        turbulence: Buffer::zeros([1024, 1024, 1024])?.place_on(NPU),
+        boundary: Buffer::zeros([1024, 1024])?.place_on(FPGA),
+    };
+    
+    // 加载边界条件
+    load_boundary_data("wing_profile.bin", field.boundary)?;
+    
+    // 运行仿真 - 自动异构并行
+    println!("Starting CFD-AI simulation...");
+    let result = CfdAiSimulation::run(params, field).await?;
+    
+    // 保存结果
+    save_vtk("result.vtk", result)?;
+    println!("Simulation completed!");
+    
+    Ok(())
+}

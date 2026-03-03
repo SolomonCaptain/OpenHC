@@ -1,7 +1,5 @@
 # OpenHC 项目上下文
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/SolomonCaptain/OpenHC)
-
 > NPU + FPGA + CUDA GPU 异构计算解决方案，包括编程语言、编译器、中间表示、构建系统和 IDE。
 
 ---
