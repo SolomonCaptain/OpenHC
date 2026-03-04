@@ -38,12 +38,19 @@ namespace hscir
         auto op = std::make_unique<Operation>("constant");
         op->addResultType(type);
         op->setAttribute("value", std::make_unique<IntegerAttr>(value));
+
+        std::shared_ptr<Value> result;
         // 插入当前块
         if (currentBlock_)
         {
+            result = std::make_shared<OpResult>(type, op.get(), 0);
             currentBlock_->addOperation(std::move(op));
         }
-        return nullptr;
+        else
+        {
+            result = std::make_shared<OpResult>(type, nullptr, 0);
+        }
+        return result;
     }
 
     std::unique_ptr<Operation> Builder::createFuncOp(const std::string& name, std::vector<std::shared_ptr<Type>> inputs, std::vector<std::shared_ptr<Type>> outputs, std::unique_ptr<Region> body)
@@ -101,15 +108,16 @@ namespace hscir
         return std::make_unique<Region>();
     }
 
-    std::unique_ptr<Block> Builder::createBlock(std::unique_ptr<Region>& region, const std::vector<std::shared_ptr<Type>>& argTypes)
+    Block* Builder::createBlock(std::unique_ptr<Region>& region, const std::vector<std::shared_ptr<Type>>& argTypes)
     {
         auto block = std::make_unique<Block>();
         for (auto& type : argTypes)
         {
             block->addArgument(type);
         }
+        Block* blockPtr = block.get();
         region->addBlock(std::move(block));
-        return nullptr;
+        return blockPtr;
     }
 
     void Builder::insert(std::unique_ptr<Operation> op)

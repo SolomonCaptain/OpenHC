@@ -31,7 +31,10 @@ impl Parser {
                 return Ok(self.consume().unwrap());
             }
         }
-        bail!("Expected {:?} at {}:{}", kind, self.peek().unwrap().line, self.peek().unwrap().column);
+        match self.peek() {
+            Some(token) => bail!("Expected {:?} at {}:{} but found {:?}", kind, token.line, token.column, token.kind),
+            None => bail!("Expected {:?} but reached end of input", kind),
+        }
     }
 
     pub(crate) fn parse_program(&mut self) -> Result<Program> {
@@ -383,20 +386,78 @@ impl Parser {
                 self.expect(TokenKind::RParen)?;
                 Ok(Type::Tuple(types))
             }
+            // 有符号整数类型
+            TokenKind::I8 => {
+                println!("Found I8 type");
+                self.consume();
+                Ok(Type::I8)
+            }
+            TokenKind::I16 => {
+                println!("Found I16 type");
+                self.consume();
+                Ok(Type::I16)
+            }
             TokenKind::I32 => {
                 println!("Found I32 type");
                 self.consume();
                 Ok(Type::I32)
             }
+            TokenKind::I64 => {
+                println!("Found I64 type");
+                self.consume();
+                Ok(Type::I64)
+            }
+            TokenKind::I128 => {
+                println!("Found I128 type");
+                self.consume();
+                Ok(Type::I128)
+            }
+            // 无符号整数类型
+            TokenKind::U8 => {
+                println!("Found U8 type");
+                self.consume();
+                Ok(Type::U8)
+            }
+            TokenKind::U16 => {
+                println!("Found U16 type");
+                self.consume();
+                Ok(Type::U16)
+            }
+            TokenKind::U32 => {
+                println!("Found U32 type");
+                self.consume();
+                Ok(Type::U32)
+            }
+            TokenKind::U64 => {
+                println!("Found U64 type");
+                self.consume();
+                Ok(Type::U64)
+            }
+            TokenKind::U128 => {
+                println!("Found U128 type");
+                self.consume();
+                Ok(Type::U128)
+            }
+            // 浮点数类型
             TokenKind::F32 => {
                 println!("Found F32 type");
                 self.consume();
                 Ok(Type::F32)
             }
+            TokenKind::F64 => {
+                println!("Found F64 type");
+                self.consume();
+                Ok(Type::F64)
+            }
             TokenKind::Bool => {
                 println!("Found Bool type");
                 self.consume();
                 Ok(Type::Bool)
+            }
+            TokenKind::Char => {
+                println!("Found Char type");
+                self.consume();
+                Ok(Type::Char)
             }
             TokenKind::Buffer => {
                 println!("Found Buffer type");
@@ -454,6 +515,11 @@ impl Parser {
             TokenKind::Return => self.parse_return_statement(),
             TokenKind::Parallel => self.parse_parallel_for(),
             TokenKind::For => self.parse_for_statement(),
+            TokenKind::If => self.parse_if_statement(),
+            TokenKind::While => self.parse_while_statement(),
+            TokenKind::Loop => self.parse_loop_statement(),
+            TokenKind::Break => self.parse_break_statement(),
+            TokenKind::Continue => self.parse_continue_statement(),
             _ => {
                 let expr = self.parse_expression()?;
                 self.expect(TokenKind::Semicolon)?;
@@ -533,6 +599,56 @@ impl Parser {
         Ok(Statement::For { var, range: (start, end), body })
     }
 
+    fn parse_if_statement(&mut self) -> Result<Statement> {
+        self.expect(TokenKind::If)?;
+        let condition = self.parse_expression()?;
+        let then_branch = self.parse_block()?;
+
+        let else_branch = if self.peek().map(|t| t.kind == TokenKind::Else).unwrap_or(false) {
+            self.consume();
+            // Else 后面可能是另一个 if (else if) 或者普通 block
+            if self.peek().map(|t| t.kind == TokenKind::If).unwrap_or(false) {
+                // else if 情况：递归解析 if 语句并包装成 Block
+                let nested_if = self.parse_if_statement()?;
+                Some(Block {
+                    statements: vec![nested_if]
+                })
+            } else {
+                // 普通 else 块
+                Some(self.parse_block()?)
+            }
+        } else {
+            None
+        };
+
+        Ok(Statement::If { condition, then_branch, else_branch })
+    }
+
+    fn parse_while_statement(&mut self) -> Result<Statement> {
+        self.expect(TokenKind::While)?;
+        let condition = self.parse_expression()?;
+        let body = self.parse_block()?;
+        Ok(Statement::While { condition, body })
+    }
+
+    fn parse_loop_statement(&mut self) -> Result<Statement> {
+        self.expect(TokenKind::Loop)?;
+        let body = self.parse_block()?;
+        Ok(Statement::Loop (body))
+    }
+
+    fn parse_break_statement(&mut self) -> Result<Statement> {
+        self.expect(TokenKind::Break)?;
+        self.expect(TokenKind::Semicolon)?;
+        Ok(Statement::Break)
+    }
+
+    fn parse_continue_statement(&mut self) -> Result<Statement> {
+        self.expect(TokenKind::Continue)?;
+        self.expect(TokenKind::Semicolon)?;
+        Ok(Statement::Continue)
+    }
+
     fn parse_expression(&mut self) -> Result<Expression> {
         self.parse_assignment()
     }
@@ -544,6 +660,8 @@ impl Parser {
                 TokenKind::Eq | TokenKind::PlusEq | TokenKind::MinusEq => {
                     let op = match token.kind {
                         TokenKind::Eq => BinaryOp::Eq,
+                        TokenKind::PlusEq => BinaryOp::Add,
+                        TokenKind::MinusEq => BinaryOp::Sub,
                         _ => BinaryOp::Add,
                     };
                     self.consume();
@@ -681,8 +799,25 @@ impl Parser {
         let token = self.consume().unwrap();
         println!("Parsing primary expression at line {}, col {}, token kind: {:?}", token.line, token.column, token.kind);  // 调试信息
         match token.kind {
-            TokenKind::Integer(s) => Ok(Expression::Integer(s.parse().unwrap())),
-            TokenKind::Float(s) => Ok(Expression::Float(s.parse().unwrap())),
+            TokenKind::Integer(s) => {
+                match s.parse::<i64>() {
+                    Ok(value) => Ok(Expression::Integer(value)),
+                    Err(_) => bail!("Invalid integer literal '{}' at line {}:{}: {}",
+                    s, token.line, token.column,
+                    if s.is_empty() { "empty string" }
+                    else if s.starts_with('-') { "negative number not allowed for unsigned integer" }
+                    else { "number out of range or invalid format" })
+                }
+            },
+            TokenKind::Float(s) => {
+                match s.parse::<f64>() {
+                    Ok(value) => Ok(Expression::Float(value)),
+                    Err(_) => bail!("Invalid float literal '{}' at line {}:{}: {}",
+                        s, token.line, token.column,
+                        if s.is_empty() { "empty string" }
+                        else { "number out of range or invalid format" })
+                }
+            },
             TokenKind::String(s) => Ok(Expression::String(s)),
             TokenKind::True => Ok(Expression::Bool(true)),
             TokenKind::False => Ok(Expression::Bool(false)),

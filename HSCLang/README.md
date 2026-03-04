@@ -1,4 +1,38 @@
-# 异构仿真语言“HSCLang”设计：语法、语义与编程范式
+# HSCLang - 异构仿真编程语言
+
+> 面向 NPU + FPGA + GPU 异构计算的统一编程语言，支持顺序任务流和数据流并行。
+
+---
+
+## 概述
+
+HSCLang 是 OpenHC 项目的核心编程语言，旨在让开发者使用统一的语法编写代码，并自动映射到 GPU、NPU、FPGA 等异构设备上执行。
+
+## 目录结构
+
+```
+HSCLang/
+├── README.md           # 语言设计文档（本文件）
+├── README_EXPLAIN.md   # 补充说明
+├── config.json         # 语言配置
+├── src/                # 语言相关源码
+└── examples/
+    └── CFD_AI_SIM/     # CFD+AI 仿真示例
+        ├── HSCC.toml
+        ├── HSCMakeList.txt
+        └── src/
+```
+
+## 相关文档
+
+- 编译器: `HSCC/README.md`
+- 中间表示: `HSCIR/README.md`
+- 构建系统: `HSCMake/README.md`
+- IDE: `HSCIDE/README.md`
+
+---
+
+# 异构仿真语言"HSCLang"设计：语法、语义与编程范式
 
 ## 一、设计哲学与核心思想
 

@@ -34,7 +34,8 @@ impl CodeGenerator {
     }
 
     fn indent_dec(&mut self) {
-        self.indent -= 1;
+        debug_assert!(self.indent > 0, "indent underflow: mismatched indent_inc/indent_dec");
+        self.indent = self.indent.saturating_sub(1);
     }
 
     pub fn generate(&mut self, program: &Program) -> String {
@@ -80,14 +81,14 @@ impl CodeGenerator {
         self.indent_dec();
         self.emitln("}");
         self.emitln("");
-        self.emitln("Buffer place_on(int dev) {");
+        self.emitln("Buffer& place_on(int dev) {");
         self.indent_inc();
         self.emitln("this->device = dev; // 仅设置设备标记，不迁移");
         self.emitln("return *this;");
         self.indent_dec();
         self.emitln("}");
         self.emitln("");
-        self.emitln("Buffer move_to(int dev) {");
+        self.emitln("Buffer& move_to(int dev) {");
         self.indent_inc();
         self.emitln("if (dev == this->device) return *this;");
         self.emitln("T* new_ptr;");
@@ -174,7 +175,39 @@ impl CodeGenerator {
     }
 
     fn generate_function(&mut self, func: &Function) {
-        self.emitln(&format!("int main() {{"));
+        // 生成函数返回类型
+        let return_type = match &func.return_type {
+            Some(Type::F32) => "float",
+            Some(Type::F64) => "double",
+            Some(Type::I32) => "int",
+            Some(Type::I64) => "long long",
+            Some(Type::Bool) => "bool",
+            Some(Type::Buffer(_, _)) => "Buffer<float>",
+            _ => "void",
+        };
+
+        // 生成参数字符串
+        let params: Vec<String> = func.params.iter().map(|param| {
+            let param_type = match param.ty {
+                Type::F32 => "float",
+                Type::F64 => "double",
+                Type::I32 => "int",
+                Type::I64 => "long long",
+                Type::Bool => "bool",
+                Type::Buffer(_, _) => "Buffer<float>",
+                _ => "auto",
+            };
+            format!("{} {}", param_type, param.name)
+        }).collect::<Vec<_>>();
+        let param_str = params.join(", ");
+
+        // 判断是否为 main 函数
+        if func.name == "main" {
+            self.emitln("int main() {");
+        } else {
+            self.emitln(&format!("{} {}({}) {{", return_type, func.name, param_str));
+        }
+
         self.indent_inc();
 
         // 生成函数体
@@ -182,9 +215,23 @@ impl CodeGenerator {
             self.generate_statement(stmt);
         }
 
-        self.emitln("return 0;");
+        // 如果不是 main 函数且具有返回类型，确保有 return 语句
+        if func.name != "main" {
+            // 检查最后一个语句是否是 return, 如果不是则添加默认 return
+            if let Some(last_stmt) = func.body.statements.last() {
+                if !matches!(last_stmt, Statement::Return(_)) {
+                   if func.return_type.is_some() {
+                       self.emitln("return;");
+                   }
+                }
+            }
+        } else {
+            self.emitln("return 0;");
+        }
+
         self.indent_dec();
         self.emitln("}");
+        self.emitln("");
     }
 
     fn generate_statement(&mut self, stmt: &Statement) {
@@ -204,7 +251,7 @@ impl CodeGenerator {
                 self.emitln(";");
             }
             Statement::Return(expr) => {
-                self.emitln("return ");
+                self.emit("return ");
                 if let Some(e) = expr {
                     self.generate_expression(e);
                 }
@@ -254,7 +301,8 @@ impl CodeGenerator {
                             if j > 0 {
                                 self.emit(", ");
                             }
-                            self.emit("float"); // 简化处理，假设都是 float
+                            // 根据泛型参数的实际类型生成对应的 C++ 类型
+                            self.generate_generic_arg(arg);
                         }
                         self.emit(">");
                     }
@@ -427,6 +475,27 @@ impl CodeGenerator {
                     self.emit("/* invalid spawn call */");
                 }
             }
+        }
+    }
+
+    fn generate_generic_arg(&mut self, arg: &Type) {
+        match arg {
+            Type::F32 => self.emit("float"),
+            Type::F64 => self.emit("double"),
+            Type::I32 => self.emit("int"),
+            Type::I64 => self.emit("long long"),
+            Type::Bool => self.emit("bool"),
+            Type::Buffer(elem_type, _) => {
+                // 递归处理 Buffer 的元素类型
+                self.emit("Buffer<");
+                self.generate_generic_arg(elem_type);
+                self.emit(">");
+            }
+            Type::Named(name) => {
+                self.emit(name);
+            }
+            Type::Tuple(_) => self.emit("auto"),
+            _ => self.emit("auto"),
         }
     }
 }

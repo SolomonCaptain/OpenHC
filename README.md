@@ -61,6 +61,14 @@ HSCLang源文件 (.hl)
   可执行文件
 ```
 
+**核心模块**:
+- `lexer.rs` - 词法分析器，定义 `TokenKind` 枚举（关键字、符号、字面量等）
+- `parser.rs` - 语法分析器，解析 `import`、`fn`、`task` 等声明
+- `ast.rs` - AST 节点定义，包括 `Program`、`Function`、`Task`、`Pattern`、`Policy` 等
+- `codegen.rs` - 代码生成器，将 AST 转换为目标代码
+- `compile.rs` - 编译驱动，调用 NVCC 编译 CUDA 代码
+- `config.rs` - 配置文件解析（HSCC.toml）
+
 **构建命令**:
 ```bash
 cd HSCC/hscc
@@ -93,12 +101,25 @@ arch = "sm_61"
 **技术栈**: C++23, CMake
 
 **核心类型系统** (`include/hscir/Types.h`):
-- `Type` - 类型基类
-- `IntegerType` - 整数类型
-- `FloatType` - 浮点类型
-- `BufferType` - 缓冲区类型（对应 hsc.buffer）
-- `FunctionType` - 函数类型
+- `Type` - 类型基类，支持 `Integer`、`Float`、`Buffer`、`Function`、`None` 五种类型
+- `IntegerType` - 整数类型（支持指定宽度和符号性）
+- `FloatType` - 浮点类型（支持指定宽度）
+- `BufferType` - 缓冲区类型（对应 hsc.buffer），包含元素类型和形状
+- `FunctionType` - 函数类型（用于函数/任务签名）
 - `TypeManager` - 类型管理器（单例模式，确保类型唯一）
+
+**操作系统** (`include/hscir/Operations.h`):
+- `Operation` - 操作基类，包含操作数、结果类型、属性和区域
+- `Value` - 值基类（操作结果或块参数）
+- `OpResult` - 操作结果值
+- `BlockArgument` - 块参数值
+- `Block` - 基本块，包含操作序列和参数
+- `Region` - 区域，包含一个或多个块
+- `Module` - 模块（顶层容器）
+
+**Builder 模式** (`include/hscir/Builder.h`):
+- `Builder` 类提供类型创建、操作创建、区域/块管理等 API
+- 支持插入点管理，用于在特定位置插入操作
 
 **构建命令**:
 ```bash
@@ -131,6 +152,11 @@ cmake --build build
 - `graph` - 显式依赖图
 - `spawn on <device>` - 设备指定执行
 - `Buffer<T>` - 多维缓冲区
+
+**任务三要素**:
+1. **执行模式 (Pattern)**: `For`、`Reduce`、`Scan`、`TaskGraph`
+2. **执行策略 (Policy)**: `device_hint`、`granularity`、`priority`
+3. **计算体 (Body)**: 实际计算代码
 
 **示例项目**: `HSCLang/examples/CFD_AI_SIM/`
 
@@ -182,8 +208,8 @@ rust_target(
 ```
 
 **核心模块**:
-- `parser.py` - HSCMakeList.txt 解析器
-- `model.py` - 项目模型
+- `parser.py` - HSCMakeList.txt 解析器，使用 Python `ast` 模块解析
+- `model.py` - 项目模型，定义 `Project`、`Target`、`Language` 等
 - `builder.py` - 构建规划与执行
 - `rules.py` - 构建规则
 - `cli.py` - 命令行接口
@@ -200,6 +226,7 @@ rust_target(
 - `ide/backend/gateway/` - Go 网关
 - `RenderPipeline/` - 渲染管线
   - `client/VulkanRenderer/` - Vulkan 渲染器客户端
+  - `client/GoDownloader/` - Go 下载器
   - `server/` - gRPC 流式 PNG 服务（Go）
 
 **渲染服务** (端口 50051):
@@ -257,7 +284,7 @@ hscmake configure --build-dir=test/build test/HSCMakeList.txt
 
 ### 添加新的编译器前端特性
 
-1. 在 `HSCC/hscc/src/lexer.rs` 添加新词法单元
+1. 在 `HSCC/hscc/src/lexer.rs` 添加新词法单元到 `TokenKind` 枚举
 2. 在 `HSCC/hscc/src/parser.rs` 添加解析逻辑
 3. 在 `HSCC/hscc/src/ast.rs` 定义 AST 节点
 4. 在 `HSCC/hscc/src/codegen.rs` 实现代码生成
@@ -276,6 +303,33 @@ hscmake configure --build-dir=test/build test/HSCMakeList.txt
 
 ---
 
+## 未来路线图
+
+### FPGA 支持 (TODO.FPGA.md)
+
+借鉴 Vitis HLS 策略：
+- `task` 映射为 HLS 顶层模块
+- `parallel for` 生成流水线或展开的硬件
+- `Buffer` 映射为 BRAM 或 AXI 接口
+- 生成带 `#pragma HLS` 的 C++ 代码
+
+### GPU 优化 (TODO.GPU.md)
+
+借鉴 vLLM 策略：
+- 引入高性能计算库（cuBLAS、rocBLAS）
+- 支持低精度计算（FP16、BF16）
+- 实现算子融合和 CUDA Graph
+- 使用 Triton DSL 支持跨平台
+
+### MLIR 集成 (TODO.MLIR.md)
+
+构建分层 IR 体系：
+- 定义高层方言 `hsc`（`hsc.task`、`hsc.parallel_for`、`hsc.buffer`）
+- 渐进式降低到通用方言（`scf`、`linalg`、`memref`）
+- 目标特化（GPU → `nvvm`/`rocdl`，FPGA → `hls`，NPU → 自定义方言）
+
+---
+
 ## 注意事项
 
 - 此项目为**学习项目**，可能存在较多 BUG
@@ -287,6 +341,6 @@ hscmake configure --build-dir=test/build test/HSCMakeList.txt
 ## 相关文档
 
 - 语言设计规范: `HSCLang/README.md`
-- FPGA 开发计划: `HSCC/hscc/TODO.FPGA.md`
-- GPU 开发计划: `HSCC/hscc/TODO.GPU.md`
-- MLIR 集成计划: `HSCC/hscc/TODO.MLIR.md`
+- FPGA 开发计划: `docs/TODO.FPGA.md`
+- GPU 开发计划: `docs/TODO.GPU.md`
+- MLIR 集成计划: `docs/TODO.MLIR.md`

@@ -183,7 +183,7 @@ hscir_value_t* hscir_builder_create_parallel_for(hscir_builder_t* builder, hscir
 
 hscir_value_t* hscir_builder_create_spawn(hscir_builder_t* builder, hscir_value_t* task, hscir_value_t** args, size_t n_args, int await)
 {
-    std::vector<std::shared_ptr<Type>> argVec;
+    std::vector<std::shared_ptr<Value>> argVec;
     for (size_t i = 0; i < n_args; ++i)
     {
         argVec.push_back(std::shared_ptr<Value>(reinterpret_cast<Value*>(args[i])));
@@ -202,5 +202,7 @@ hscir_value_t* hscir_builder_create_place_on(hscir_builder_t* builder, hscir_val
 
 void hscir_builder_insert_operation(hscir_builder_t* builder, hscir_value_t* op)
 {
-
+    // TODO: 添加 hscir_operation_t 类型来代表操作
+    (void)builder;
+    (void)op;
 }

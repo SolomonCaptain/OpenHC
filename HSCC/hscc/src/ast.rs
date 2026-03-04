@@ -60,7 +60,11 @@ pub struct Param {
 
 #[derive(Debug, Clone)]
 pub enum Type {
-    I32, F32, Bool,
+    I8, I16, I32, I64, I128,
+    U8, U16, U32, U64, U128,
+    F32, F64,
+    Bool,
+    Char,
     Buffer(Box<Type>, Option<usize>),
     Named(String),
     Tuple(Vec<Type>),
@@ -91,6 +95,18 @@ pub enum Statement {
         range: (Expression, Expression),
         body: Block,
     },
+    If {
+        condition: Expression,
+        then_branch: Block,
+        else_branch: Option<Block>,
+    },
+    While {
+        condition: Expression,
+        body: Block,
+    },
+    Loop(Block),
+    Break,
+    Continue,
 }
 
 #[derive(Debug, Clone)]
