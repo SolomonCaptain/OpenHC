@@ -49,6 +49,7 @@ namespace hscir
 
             std::string toString() const override;
             bool operator==(const IntegerType&) const;
+            bool operator==(const Type&) const override;
 
         private:
             unsigned width_;
@@ -65,6 +66,7 @@ namespace hscir
 
             std::string toString() const override;
             bool operator==(const FloatType&) const;
+            bool operator==(const Type&) const override;
 
         private:
             unsigned width_;
@@ -82,6 +84,7 @@ namespace hscir
 
             std::string toString() const override;
             bool operator==(const BufferType&) const;
+            bool operator==(const Type&) const override;
 
         private:
             std::shared_ptr<Type> elementType_;
@@ -99,6 +102,7 @@ namespace hscir
 
             std::string toString() const override;
             bool operator==(const FunctionType&) const;
+            bool operator==(const Type&) const override;
 
         private:
             std::vector<std::shared_ptr<Type>> inputs_;

@@ -35,7 +35,7 @@ namespace hscir
     {
         std::string indentStr(indent, ' ');
         os << indentStr << "%" << this << " = \"" << name_ << "\"(";
-        for (size_t i = 0; i < regions_.size(); ++i)
+        for (size_t i = 0; i < operands_.size(); ++i)
         {
             if (i > 0) os << ", ";
             os << operands_[i]->toString();

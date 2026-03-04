@@ -112,11 +112,18 @@ namespace hscir
         return (isSigned_ ? "i" : "u") + std::to_string(width_);
     }
 
+    bool IntegerType::operator==(const IntegerType& other) const
+    {
+        return this->width_ == other.width_ && this->isSigned_ == other.isSigned_;
+    }
+
     bool IntegerType::operator==(const Type& other) const
     {
-        if (other.getKind() != Kind::Integer) { return false; }
-        auto& o = static_cast<const IntegerType&>(other);
-        return width_ == o.width_ && isSigned_ == o.isSigned_;
+        if (auto intOther = dynamic_cast<const IntegerType*>(&other))
+        {
+            return *this == *intOther;
+        }
+        return false;
     }
 
     // FloatType
@@ -124,11 +131,18 @@ namespace hscir
     {
         return "f" + std::to_string(width_);
     }
+    bool FloatType::operator==(const FloatType& other) const
+    {
+        return this->width_ == other.width_;
+    }
+
     bool FloatType::operator==(const Type& other) const
     {
-        if (other.getKind() != Kind::Float) { return false; }
-        auto& o = static_cast<const FloatType&>(other);
-        return width_ == o.width_;
+        if (auto floatOther = dynamic_cast<const FloatType*>(&other))
+        {
+            return *this == *floatOther;
+        }
+        return false;
     }
 
     // BufferType
@@ -150,11 +164,18 @@ namespace hscir
         return oss.str();
     }
 
+    bool BufferType::operator==(const BufferType& other) const
+    {
+        return this->elementType_ == other.elementType_ && this->shape_ == other.shape_;
+    }
+
     bool BufferType::operator==(const Type& other) const
     {
-        if (other.getKind() != Kind::Buffer) { return false; }
-        auto& o = static_cast<const BufferType&>(other);
-        return *elementType_ == *o.elementType_ && shape_ == o.shape_;
+        if (auto bufferOther = dynamic_cast<const BufferType*>(&other))
+        {
+            return *this == *bufferOther;
+        }
+        return false;
     }
 
     // FunctionType
@@ -183,20 +204,17 @@ namespace hscir
         }
         return oss.str();
     }
-    bool FunctionType::operator==(const Type& other) const
+    bool FunctionType::operator==(const FunctionType& other) const
     {
-        if (other.getKind() != Kind::Function) { return false; }
-        auto& o = static_cast<const FunctionType&>(other);
-        if (inputs_.size() != o.inputs_.size() || outputs_.size() != o.outputs_.size()) { return false; }
-        for (size_t i = 0; i < inputs_.size(); ++i)
-        {
-            if (*inputs_[i] != *o.inputs_[i]) { return false; }
-        }
-        for (size_t i = 0; i < outputs_.size(); ++i)
-        {
-            if (*outputs_[i] != *o.outputs_[i]) { return false; }
-        }
-        return true;
+        return this->inputs_ == other.inputs_ && this->outputs_ == other.outputs_;
     }
 
+    bool FunctionType::operator==(const Type& other) const
+    {
+        if (auto funcOther = dynamic_cast<const FunctionType*>(&other))
+        {
+            return *this == *funcOther;
+        }
+        return false;
+    }
 }

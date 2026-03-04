@@ -33,7 +33,7 @@ namespace hscir
 
             // 区域和块创建
             std::unique_ptr<Region> createRegion();
-            std::unique_ptr<Block> createBlock(std::unique_ptr<Region>& region, const std::vector<std::shared_ptr<Type>>& argTypes = {});
+            Block* createBlock(std::unique_ptr<Region>& region, const std::vector<std::shared_ptr<Type>>& argTypes = {});
 
             // 插入操作到当前块
             void insert(std::unique_ptr<Operation> op);
