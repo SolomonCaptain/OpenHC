@@ -19,10 +19,22 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}  # to check out the actual pull request commit, not the merge commit
           fetch-depth: 0  # a full history is required for pull request analysis
+
+      # Setup CMake and generate compile_commands.json for C/C++ analysis
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: '3.25'
+
+      - name: Generate compile_commands.json
+        run: |
+          cmake -S HSCIR -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_BUILD_TYPE=Release
+
       - name: 'Qodana Scan'
         uses: JetBrains/qodana-action@v2025.3
         with:
           pr-mode: false
+          compile-commands: build/compile_commands.json
         env:
           QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
           QODANA_ENDPOINT: 'https://qodana.cloud'
