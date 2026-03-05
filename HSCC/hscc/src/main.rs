@@ -7,6 +7,7 @@ mod parser;
 mod ast;
 mod codegen;
 mod compile;
+mod typeck;
 
 use anyhow::Result;
 use std::env;
@@ -37,6 +38,9 @@ fn main() -> Result<()> {
     // 语法分析
     let mut parser = parser::Parser::new(tokens);
     let ast = parser.parse_program()?;
+    
+    // 类型检查
+    typeck::TypeChecker::typecheck_program(&ast, 1)?;
     
     // 代码生成
     let mut generator = codegen::CodeGenerator::new();
