@@ -30,11 +30,11 @@
 **文件**: `HSCC/hscc/src/typeck.rs` (新建)
 
 #### AST 到 HSCIR 转换
-- [ ] 设计 AST -> HSCIR 映射规则
-- [ ] 实现 `Program` -> `Module` 转换
-- [ ] 实现 `Task` -> `Operation` 转换
-- [ ] 实现 `Buffer` 类型映射
-- [ ] 实现控制流转换 (for/if/while -> Block)
+- [x] 设计 AST -> HSCIR 映射规则
+- [x] 实现 `Program` -> `Module` 转换
+- [x] 实现 `Task` -> `Operation` 转换
+- [x] 实现 `Buffer` 类型映射
+- [x] 实现控制流转换 (for/if/while -> Block)
 
 **文件**: `HSCC/hscc/src/lower.rs` (新建)
 

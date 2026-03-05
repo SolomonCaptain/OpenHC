@@ -8,6 +8,8 @@ mod ast;
 mod codegen;
 mod compile;
 mod typeck;
+mod hscir;
+mod lower;
 
 use anyhow::Result;
 use std::env;
