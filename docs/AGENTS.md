@@ -22,7 +22,7 @@ OpenHC 是一个异构计算平台项目，旨在提供一套完整的工具链�
 
 ```
 OpenHC/
-├── HSCC/           # 编译器 (Rust)
+├── HSCC/           # 编译器 (Rust Edition 2024)
 ├── HSCIR/          # 中间表示 (C++23)
 ├── HSCLang/        # 编程语言设计与规范
 ├── HSCMake/        # 构建系统 (Python 3.13+)
@@ -45,6 +45,7 @@ OpenHC/
 - `serde` - 序列化/反序列化
 - `regex` - 词法分析
 - `anyhow` - 错误处理
+- `pretty_assertions` (dev) - 测试断言
 
 **编译流程**:
 ```
@@ -54,9 +55,13 @@ HSCLang源文件 (.hl)
        ↓
   抽象语法树 (ast.rs)
        ↓
-  代码生成器 (codegen.rs)
+  类型检查器 (typeck.rs)
        ↓
-  CUDA 代码 (.cu)
+  HSCIR 中间表示 (lower.rs)
+       ↓
+  代码生成器 (codegen.rs / triton/)
+       ↓
+  CUDA 代码 (.cu) 或 Triton Python (.py)
        ↓
   可执行文件
 ```
@@ -65,7 +70,10 @@ HSCLang源文件 (.hl)
 - `lexer.rs` - 词法分析器，定义 `TokenKind` 枚举（关键字、符号、字面量等）
 - `parser.rs` - 语法分析器，解析 `import`、`fn`、`task` 等声明
 - `ast.rs` - AST 节点定义，包括 `Program`、`Function`、`Task`、`Pattern`、`Policy` 等
-- `codegen.rs` - 代码生成器，将 AST 转换为目标代码
+- `typeck.rs` - 类型检查器，实现类型推断、兼容性检查、错误报告
+- `lower.rs` - AST 到 HSCIR 转换，实现程序、任务、控制流转换
+- `codegen.rs` - CUDA/HIP 代码生成器
+- `triton/` - Triton DSL 后端支持
 - `compile.rs` - 编译驱动，调用 NVCC 编译 CUDA 代码
 - `config.rs` - 配置文件解析（HSCC.toml）
 
@@ -77,7 +85,13 @@ cargo build --release
 
 **运行**:
 ```bash
-hscc <project-directory>
+hscc <project-directory> [--backend=cuda|triton]
+```
+
+**测试**:
+```bash
+cd HSCC/hscc
+cargo test
 ```
 
 **配置文件格式** (`HSCC.toml`):
@@ -98,7 +112,7 @@ arch = "sm_61"
 
 **路径**: `HSCIR/`
 
-**技术栈**: C++23, CMake
+**技术栈**: C++23, CMake 3.25+
 
 **核心类型系统** (`include/hscir/Types.h`):
 - `Type` - 类型基类，支持 `Integer`、`Float`、`Buffer`、`Function`、`None` 五种类型
@@ -109,6 +123,8 @@ arch = "sm_61"
 - `TypeManager` - 类型管理器（单例模式，确保类型唯一）
 
 **操作系统** (`include/hscir/Operations.h`):
+
+**基础类**:
 - `Operation` - 操作基类，包含操作数、结果类型、属性和区域
 - `Value` - 值基类（操作结果或块参数）
 - `OpResult` - 操作结果值
@@ -116,6 +132,35 @@ arch = "sm_61"
 - `Block` - 基本块，包含操作序列和参数
 - `Region` - 区域，包含一个或多个块
 - `Module` - 模块（顶层容器）
+
+**算术操作**:
+- `AddOp`, `SubOp`, `MulOp`, `DivOp`, `ModOp` - 基本算术运算
+- `CmpOp` - 比较操作（EQ, NE, LT, LE, GT, GE）
+
+**内存操作**:
+- `AllocOp` - 内存分配
+- `LoadOp` - 内存加载
+- `StoreOp` - 内存存储
+
+**控制流操作**:
+- `BranchOp` - 无条件跳转
+- `CondBranchOp` - 条件跳转
+- `ReturnOp` - 函数返回
+
+**并行操作**:
+- `ParallelForOp` - 并行循环
+- `ReduceOp` - 归约操作（SUM, PROD, MIN, MAX, AND, OR, XOR）
+
+**设备操作**:
+- `SpawnOp` - 任务启动
+- `SyncOp` - 设备同步
+- `MoveToOp` - 数据迁移
+- `PlaceOnOp` - 设备放置
+
+**其他操作**:
+- `ConstantOp` - 常量定义
+- `FuncOp` - 函数定义
+- `TaskOp` - 任务定义
 
 **Builder 模式** (`include/hscir/Builder.h`):
 - `Builder` 类提供类型创建、操作创建、区域/块管理等 API
@@ -221,15 +266,15 @@ rust_target(
 **路径**: `HSCIDE/`
 
 **组件**:
-- `ide/HSC Studio/` - 主 IDE（.slnx 解决方案）
+- `ide/HSC Studio/` - 主 IDE（.slnx 解决方案，.NET/C#）
 - `ide/backend/BBF/` - Python 后端
 - `ide/backend/gateway/` - Go 网关
 - `RenderPipeline/` - 渲染管线
   - `client/VulkanRenderer/` - Vulkan 渲染器客户端
   - `client/GoDownloader/` - Go 下载器
-  - `server/` - gRPC 流式 PNG 服务（Go）
+  - `server/` - gRPC 流式 PNG 服务（Go，端口 50051）
 
-**渲染服务** (端口 50051):
+**渲染服务 API**:
 ```go
 // 流式传输 PNG 帧
 rpc GetPNGStream(PNGRequest) returns (stream PNGChunk)
@@ -243,8 +288,9 @@ rpc GetPNGStream(PNGRequest) returns (stream PNGChunk)
 
 **Rust (HSCC)**:
 - 使用 `anyhow::Result` 进行错误处理
-- 模块化设计：`lexer`, `parser`, `ast`, `codegen`, `compile`
+- 模块化设计：`lexer`, `parser`, `ast`, `typeck`, `lower`, `codegen`, `compile`
 - 使用 `extern crate` 声明外部依赖
+- 测试使用 `pretty_assertions` 增强断言输出
 
 **C++ (HSCIR)**:
 - C++23 标准
@@ -278,6 +324,13 @@ uv run pytest
 hscmake configure --build-dir=test/build test/HSCMakeList.txt
 ```
 
+**HSCIR 构建**:
+```bash
+cd HSCIR
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+```
+
 ---
 
 ## 常用开发任务
@@ -287,19 +340,33 @@ hscmake configure --build-dir=test/build test/HSCMakeList.txt
 1. 在 `HSCC/hscc/src/lexer.rs` 添加新词法单元到 `TokenKind` 枚举
 2. 在 `HSCC/hscc/src/parser.rs` 添加解析逻辑
 3. 在 `HSCC/hscc/src/ast.rs` 定义 AST 节点
-4. 在 `HSCC/hscc/src/codegen.rs` 实现代码生成
+4. 在 `HSCC/hscc/src/typeck.rs` 添加类型检查规则
+5. 在 `HSCC/hscc/src/lower.rs` 实现 AST 到 HSCIR 转换
+6. 在 `HSCC/hscc/src/codegen.rs` 实现代码生成
 
-### 添加新的 HSCIR 类型
+### 添加新的 HSCIR 操作
 
-1. 在 `HSCIR/include/hscir/Types.h` 定义类型类
-2. 在 `HSCIR/src/Types.cpp` 实现 `toString()` 和 `operator==`
-3. 在 `TypeManager` 添加类型缓存逻辑
+1. 在 `HSCIR/include/hscir/Operations.h` 定义操作类
+2. 在 `HSCIR/src/Operations.cpp` 实现 `print()` 方法
+3. 在 `HSCIR/include/hscir/Builder.h` 添加创建方法
 
 ### 添加新的构建目标类型
 
 1. 在 `HSCMake/hscmake/model.py` 定义目标模型
 2. 在 `HSCMake/hscmake/rules.py` 添加构建规则
 3. 在 `HSCMake/hscmake/builder.py` 实现构建逻辑
+
+---
+
+## 项目成熟度
+
+| 子项目 | 语言 | 完成度 | 测试覆盖 | 优先级 |
+|--------|------|--------|----------|--------|
+| HSCC (编译器) | Rust | 60% | ✅ 单元/集成/端到端测试 | 🔴 高 |
+| HSCIR (中间表示) | C++23 | 70% | ❌ 无 | 🔴 高 |
+| HSCLang (语言规范) | - | 80% | - | 🟡 中 |
+| HSCMake (构建系统) | Python | 70% | ❌ 无 | 🟡 中 |
+| HSCIDE (IDE) | 多语言 | 20% | ❌ 无 | 🟢 低 |
 
 ---
 
@@ -335,6 +402,7 @@ hscmake configure --build-dir=test/build test/HSCMakeList.txt
 - 此项目为**学习项目**，可能存在较多 BUG
 - 项目处于活跃开发状态，API 可能随时变化
 - 支持 Windows 平台开发
+- HSCC 编译器已有完整的单元测试、集成测试和端到端测试覆盖
 
 ---
 
@@ -344,3 +412,5 @@ hscmake configure --build-dir=test/build test/HSCMakeList.txt
 - FPGA 开发计划: `docs/TODO.FPGA.md`
 - GPU 开发计划: `docs/TODO.GPU.md`
 - MLIR 集成计划: `docs/TODO.MLIR.md`
+- 开发路线图: `docs/TODO.md`
+- 开发者指南: `docs/DEVELOPER_GUIDE.md`

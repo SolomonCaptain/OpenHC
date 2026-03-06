@@ -9,6 +9,14 @@ toml = "1.0.1"
 serde = { version = "1.0.228", features = ["derive"] }
 regex = "1.12.3"
 anyhow = "1.0.101"
+# ONNX 支持
+protobuf = "3.7"
+# 可选：使用 tract-onnx 进行 ONNX 解析/生成
+tract-onnx = { version = "0.21", optional = true }
+
+[features]
+default = []
+onnx-parser = ["tract-onnx"]
 
 [dev-dependencies]
 # 测试相关依赖

@@ -70,12 +70,12 @@ pub enum Type {
     Tuple(Vec<Type>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Block {
     pub statements: Vec<Statement>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Statement {
     Let {
         mutable: bool,

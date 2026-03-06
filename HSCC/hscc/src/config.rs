@@ -11,6 +11,8 @@ pub enum Backend {
     Triton,
     /// HIP (AMD GPU) 后端
     Hip,
+    /// NPU 后端
+    Npu,
 }
 
 impl Default for Backend {
@@ -26,16 +28,18 @@ impl Backend {
             "cuda" | "gpu" => Backend::Cuda,
             "triton" => Backend::Triton,
             "hip" | "rocm" | "amd" => Backend::Hip,
+            "npu" | "intel_npu" | "openvino" => Backend::Npu,
             _ => Backend::Cuda,
         }
     }
-    
+
     /// 获取后端名称
     pub fn name(&self) -> &str {
         match self {
             Backend::Cuda => "cuda",
             Backend::Triton => "triton",
             Backend::Hip => "hip",
+            Backend::Npu => "npu",
         }
     }
 }
