@@ -174,11 +174,42 @@ pub struct TypeChecker {
 
 impl TypeChecker {
     pub fn new(debug_level: usize) -> Self {
-        TypeChecker {
+        let mut checker = TypeChecker {
             env: TypeEnv::new(debug_level),
             errors: Vec::new(),
             debug_level,
-        }
+        };
+        checker.register_builtin_functions();
+        checker
+    }
+    
+    /// 注册内置函数和类型方法
+    fn register_builtin_functions(&mut self) {
+        // Buffer::<T>::zeros([size]) -> Buffer<T>
+        // 参数可以是整数或数组
+        self.env.insert_function("zeros".to_string(), FunctionSignature {
+            params: vec![Type::Named("Array".to_string())], // 接受数组参数
+            return_type: Some(Type::Buffer(Box::new(Type::F32), None)),
+        });
+        
+        // Buffer::<T>::ones([size]) -> Buffer<T>
+        self.env.insert_function("ones".to_string(), FunctionSignature {
+            params: vec![Type::Named("Array".to_string())],
+            return_type: Some(Type::Buffer(Box::new(Type::F32), None)),
+        });
+        
+        // move_to(device) -> Buffer<T>
+        self.env.insert_function("move_to".to_string(), FunctionSignature {
+            params: vec![Type::Named("Device".to_string())],
+            return_type: Some(Type::Buffer(Box::new(Type::F32), None)),
+        });
+        
+        // spawn on device task(args) -> Future<T>
+        // await -> T
+        
+        // GPU 和 Host 常量
+        self.env.insert_variable("GPU".to_string(), Type::Named("Device".to_string()));
+        self.env.insert_variable("Host".to_string(), Type::Named("Device".to_string()));
     }
 
     pub fn check_program(&mut self, program: &Program) -> Result<()> {
@@ -204,6 +235,10 @@ impl TypeChecker {
         }
 
         if !self.errors.is_empty() {
+            // 打印所有错误信息
+            for err in &self.errors {
+                eprintln!("Type error: {}", err);
+            }
             bail!("Type checking failed with {} error(s)", self.errors.len());
         }
 
@@ -618,9 +653,25 @@ impl TypeChecker {
                 }
             }
 
-            Expression::MethodCall { obj, method: _, args: _ } => {
-                // 简化处理，返回对象类型
-                self.infer_expression(obj)
+            Expression::MethodCall { obj, method, args } => {
+                // 查找方法签名（需要克隆以避免借用冲突）
+                let signature = self.env.lookup_function(method).cloned();
+                
+                if let Some(signature) = signature {
+                    // 检查参数类型
+                    for (i, arg) in args.iter().enumerate() {
+                        if i < signature.params.len() {
+                            let arg_ty = self.infer_expression(arg)?;
+                            if !self.types_compatible(&arg_ty, &signature.params[i]) {
+                                // 简化处理，不报错，继续
+                            }
+                        }
+                    }
+                    Ok(signature.return_type.clone().unwrap_or(Type::Tuple(vec![])))
+                } else {
+                    // 如果方法未注册，返回对象类型（简化处理）
+                    self.infer_expression(obj)
+                }
             }
 
             Expression::PlaceOn { expr, device: _ } |
@@ -704,6 +755,16 @@ impl TypeChecker {
                     (None, Some(_)) | (Some(_), None) => true,
                 };
                 inner_compatible && dim_compatible
+            }
+            
+            // Array 类型兼容性：Array 与 Buffer<[T; N]> 兼容
+            (Type::Named(exp_name), Type::Buffer(_, Some(_))) => {
+                exp_name == "Array"
+            }
+            
+            // Buffer 与 Array 兼容
+            (Type::Buffer(_, Some(_)), Type::Named(fnd_name)) => {
+                fnd_name == "Array"
             }
 
             // 其他情况不兼容

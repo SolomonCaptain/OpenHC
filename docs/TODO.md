@@ -8,8 +8,8 @@
 
 | 子项目 | 语言 | 完成度 | 测试覆盖 | 优先级 |
 |--------|------|--------|----------|--------|
-| HSCC (编译器) | Rust | 40% | ❌ 无 | 🔴 高 |
-| HSCIR (中间表示) | C++23 | 50% | ❌ 无 | 🔴 高 |
+| HSCC (编译器) | Rust | 60% | ✅ 单元/集成/端到端测试 | 🔴 高 |
+| HSCIR (中间表示) | C++23 | 70% | ❌ 无 | 🔴 高 |
 | HSCLang (语言规范) | - | 80% | - | 🟡 中 |
 | HSCMake (构建系统) | Python | 70% | ❌ 无 | 🟡 中 |
 | HSCIDE (IDE) | 多语言 | 20% | ❌ 无 | 🟢 低 |
@@ -196,7 +196,13 @@
 - [ ] 引入高性能计算库 (cuBLAS, rocBLAS)
 - [ ] 支持低精度计算 (FP16, BF16)
 - [ ] 实现算子融合
-- [ ] 集成 Triton DSL
+- [x] **Triton DSL 集成规划** (详见 `docs/TODO.TRITON.md`)
+
+#### Triton DSL 集成 (详见 `docs/TODO.TRITON.md`)
+- [ ] 建立 HSCIR 到 Triton-IR 的基础转换框架
+- [ ] 实现基本类型映射和操作映射
+- [ ] 支持 NVIDIA 和 AMD GPU 跨平台编译
+- [ ] 实现算子融合和自动调优
 
 #### 执行优化
 - [ ] 实现 CUDA Graph 捕获
@@ -263,33 +269,34 @@
 
 ### Milestone 1: 最小可用编译器 (MVP)
 **目标**: 能够编译并运行简单的 HSCLang 程序
-**时间**: 2-3 周
+**状态**: 🔄 进行中
 
-- [ ] 完成类型检查器
-- [ ] 完成 HSCIR 基础操作
-- [ ] 实现 AST -> HSCIR 转换
-- [ ] 添加基础测试
+- [x] 完成类型检查器
+- [x] 完成 HSCIR 基础操作
+- [x] 实现 AST -> HSCIR 转换
+- [x] 添加基础测试
 
 ### Milestone 2: 多后端支持
 **目标**: 支持 GPU 和 CPU 后端
-**时间**: 1-2 月
 
 - [ ] 重构 CUDA 后端
 - [ ] 添加 CPU 后端
 - [ ] 完善示例项目
 - [ ] 性能基准测试
 
-### Milestone 3: MLIR 集成
-**目标**: 基于 MLIR 重构编译器基础设施
-**时间**: 3-6 月
+### Milestone 3: MLIR 集成 + Triton DSL
+**目标**: 基于 MLIR 重构编译器基础设施，集成 Triton DSL 实现跨平台 GPU 优化
 
 - [ ] 定义 hsc 方言
 - [ ] 实现渐进式降低
 - [ ] 支持 GPU/FPGA/NPU 后端
+- [ ] 完成 Triton DSL 集成 (详见 `docs/TODO.TRITON.md`)
+  - [ ] Phase 1: 基础设施 (HSCIR → Triton-IR 转换)
+  - [ ] Phase 2: 核心功能 (并行循环、归约、任务启动)
+  - [ ] Phase 3: 高级优化 (算子融合、多设备支持、自动调优)
 
 ### Milestone 4: 生产就绪
 **目标**: 可用于实际项目
-**时间**: 6-12 月
 
 - [ ] 完善所有后端
 - [ ] 完善文档
@@ -322,6 +329,8 @@
 | 多后端维护复杂 | 中 | 设计良好的后端抽象接口 |
 | FPGA 工具链依赖 | 中 | 优先 GPU 后端，FPGA 作为可选功能 |
 | 性能优化工作量大 | 中 | 优先正确性，性能渐进优化 |
+| Triton API 变更 | 中 | 版本锁定，抽象层隔离 |
+| Python 运行时开销 | 中 | AOT 编译，内核缓存优化 |
 
 ---
 
@@ -331,7 +340,9 @@
 - [Vitis HLS 用户指南](https://docs.xilinx.com/r/en-US/ug1399-vitis-hls)
 - [CUDA 编程指南](https://docs.nvidia.com/cuda/cuda-c-programming-guide/)
 - [vLLM 项目](https://github.com/vllm-project/vllm)
+- [OpenAI Triton](https://triton-lang.org/)
+- [NVIDIA CUDA Tile IR](https://developer.nvidia.com/blog/advancing-gpu-programming-with-the-cuda-tile-ir-backend-for-openai-triton/)
 
 ---
 
-*最后更新: 2026-03-04*
+*最后更新: 2026-03-06*

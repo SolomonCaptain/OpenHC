@@ -54,6 +54,10 @@ HSCLang源文件 (.hl)
        ↓
   抽象语法树 (ast.rs)
        ↓
+  类型检查器 (typeck.rs)
+       ↓
+  HSCIR 中间表示 (lower.rs)
+       ↓
   代码生成器 (codegen.rs)
        ↓
   CUDA 代码 (.cu)
@@ -65,6 +69,8 @@ HSCLang源文件 (.hl)
 - `lexer.rs` - 词法分析器，定义 `TokenKind` 枚举（关键字、符号、字面量等）
 - `parser.rs` - 语法分析器，解析 `import`、`fn`、`task` 等声明
 - `ast.rs` - AST 节点定义，包括 `Program`、`Function`、`Task`、`Pattern`、`Policy` 等
+- `typeck.rs` - 类型检查器，实现类型推断、兼容性检查、错误报告
+- `lower.rs` - AST 到 HSCIR 转换，实现程序、任务、控制流转换
 - `codegen.rs` - 代码生成器，将 AST 转换为目标代码
 - `compile.rs` - 编译驱动，调用 NVCC 编译 CUDA 代码
 - `config.rs` - 配置文件解析（HSCC.toml）
@@ -109,6 +115,8 @@ arch = "sm_61"
 - `TypeManager` - 类型管理器（单例模式，确保类型唯一）
 
 **操作系统** (`include/hscir/Operations.h`):
+
+**基础类**:
 - `Operation` - 操作基类，包含操作数、结果类型、属性和区域
 - `Value` - 值基类（操作结果或块参数）
 - `OpResult` - 操作结果值
@@ -117,9 +125,47 @@ arch = "sm_61"
 - `Region` - 区域，包含一个或多个块
 - `Module` - 模块（顶层容器）
 
+**算术操作**:
+- `AddOp`, `SubOp`, `MulOp`, `DivOp`, `ModOp` - 基本算术运算
+- `CmpOp` - 比较操作（EQ, NE, LT, LE, GT, GE）
+
+**内存操作**:
+- `AllocOp` - 内存分配
+- `LoadOp` - 内存加载
+- `StoreOp` - 内存存储
+
+**控制流操作**:
+- `BranchOp` - 无条件跳转
+- `CondBranchOp` - 条件跳转
+- `ReturnOp` - 函数返回
+
+**并行操作**:
+- `ParallelForOp` - 并行循环
+- `ReduceOp` - 归约操作（SUM, PROD, MIN, MAX, AND, OR, XOR）
+
+**设备操作**:
+- `SpawnOp` - 任务启动
+- `SyncOp` - 设备同步
+- `MoveToOp` - 数据迁移
+- `PlaceOnOp` - 设备放置
+
+**其他操作**:
+- `ConstantOp` - 常量定义
+- `FuncOp` - 函数定义
+- `TaskOp` - 任务定义
+
 **Builder 模式** (`include/hscir/Builder.h`):
 - `Builder` 类提供类型创建、操作创建、区域/块管理等 API
 - 支持插入点管理，用于在特定位置插入操作
+
+**主要方法**:
+- 类型创建: `getI32Type()`, `getF32Type()`, `getBufferType()`, `getFunctionType()`
+- 常量创建: `createI32Constant()`, `createF32Constant()`, `createBoolConstant()`
+- 算术操作: `createAddOp()`, `createSubOp()`, `createMulOp()`, `createDivOp()`, `createCmpOp()`
+- 内存操作: `createAllocOp()`, `createLoadOp()`, `createStoreOp()`
+- 控制流: `createBranchOp()`, `createCondBranchOp()`, `createReturnOp()`
+- 并行操作: `createParallelForOp()`, `createReduceOp()`
+- 设备操作: `createSpawnOp()`, `createSyncOp()`, `createMoveToOp()`
 
 **构建命令**:
 ```bash
@@ -335,12 +381,15 @@ hscmake configure --build-dir=test/build test/HSCMakeList.txt
 - 此项目为**学习项目**，可能存在较多 BUG
 - 项目处于活跃开发状态，API 可能随时变化
 - 支持 Windows 平台开发
+- HSCC 编译器已有完整的单元测试、集成测试和端到端测试覆盖
 
 ---
 
 ## 相关文档
 
+- 项目上下文: `docs/AGENTS.md`
 - 语言设计规范: `HSCLang/README.md`
 - FPGA 开发计划: `docs/TODO.FPGA.md`
 - GPU 开发计划: `docs/TODO.GPU.md`
 - MLIR 集成计划: `docs/TODO.MLIR.md`
+- 开发路线图: `docs/TODO.md`

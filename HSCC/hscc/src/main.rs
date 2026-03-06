@@ -10,6 +10,7 @@ mod compile;
 mod typeck;
 mod hscir;
 mod lower;
+mod triton;
 
 use anyhow::Result;
 use std::env;
@@ -20,14 +21,29 @@ use std::path::Path;
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
-        eprintln!("Usage: hscc <project-directory>");
+        eprintln!("Usage: hscc <project-directory> [--backend=<cuda|triton>]");
         std::process::exit(1);
     }
+    
+    // 解析参数
     let project_dir = &args[1];
+    let backend_override = args.iter()
+        .find(|arg| arg.starts_with("--backend="))
+        .map(|arg| arg.strip_prefix("--backend=").unwrap());
+    
     let config_path = Path::new(project_dir).join("HSCC.toml");
     let config = config::Config::from_file(config_path.to_str().unwrap())?;
+    
     println!("Compiling project: {} v{}", config.package.name, config.package.version);
-    println!("Target device: {}", config.target.device);
+    
+    // 确定后端
+    let backend = if let Some(backend_str) = backend_override {
+        config::Backend::from_str(backend_str)
+    } else {
+        config.get_backend()
+    };
+    
+    println!("Target device: {} (backend: {})", config.target.device, backend.name());
     
     // 查找源文件
     let source_path = Path::new(project_dir).join("src").join("main.hl");
@@ -44,19 +60,36 @@ fn main() -> Result<()> {
     // 类型检查
     typeck::TypeChecker::typecheck_program(&ast, 1)?;
     
-    // 代码生成
-    let mut generator = codegen::CodeGenerator::new();
-    let cuda_code = generator.generate(&ast);
+    // 根据后端选择代码生成
+    match backend {
+        config::Backend::Triton => {
+            // 生成 Triton Python 代码
+            let triton_code = triton::lowering::lower_to_triton(&ast);
+            
+            // 写入 Python 文件
+            let py_file = Path::new(project_dir).join(format!("{}.py", config.package.name));
+            fs::write(&py_file, &triton_code)?;
+            
+            println!("Generated Triton Python: {}", py_file.display());
+            println!("Run with: python {}", py_file.display());
+        }
+        config::Backend::Cuda | config::Backend::Hip => {
+            // 生成 CUDA/HIP C++ 代码
+            let mut generator = codegen::CodeGenerator::new();
+            let cuda_code = generator.generate(&ast);
+            
+            // 写入临时 CUDA 文件
+            let cpp_file = Path::new(project_dir).join("output.cu");
+            compile::write_cpp_file(&cuda_code, cpp_file.to_str().unwrap())?;
+            
+            // 编译为可执行文件
+            let exe_file = Path::new(project_dir).join(&config.package.name);
+            compile::compile_cuda(cpp_file.to_str().unwrap(), exe_file.to_str().unwrap())?;
+            
+            println!("Compilation successful! Executable: {}", exe_file.display());
+        }
+    }
     
-    // 写入临时 CUDA 文件
-    let cpp_file = Path::new(project_dir).join("output.cu");
-    compile::write_cpp_file(&cuda_code, cpp_file.to_str().unwrap())?;
-    
-    // 编译为可执行文件
-    let exe_file = Path::new(project_dir).join(&config.package.name);
-    compile::compile_cuda(cpp_file.to_str().unwrap(), exe_file.to_str().unwrap())?;
-    
-    println!("Compilation successful! Executable: {}", exe_file.display());
     Ok(())
 }
 
