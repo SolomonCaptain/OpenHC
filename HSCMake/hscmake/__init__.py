@@ -1,7 +1,7 @@
-from .cli import cli, main
-from .parser import HSCMakeParser
-from .model import Project, Target, Language, TargetType
-from .builder import BuildPlanner, BuildExecutor
+from hscmake.cli import cli, main
+from hscmake.parser import HSCMakeParser
+from hscmake.model import Project, Target, Language, TargetType
+from hscmake.builder import BuildPlanner, BuildExecutor
 
 __all__ = [
     "cli",

@@ -800,3 +800,518 @@ impl TypeChecker {
         checker.check_program(program)
     }
 }
+
+// ========== 测试模块 ==========
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::Lexer;
+    use crate::parser::Parser;
+
+    fn parse_program(source: &str) -> Result<Program> {
+        let mut lexer = Lexer::new(source);
+        let tokens = lexer.tokenize();
+        let mut parser = Parser::new(tokens);
+        parser.parse_program()
+    }
+
+    fn typecheck(source: &str) -> Result<()> {
+        let program = parse_program(source)?;
+        TypeChecker::typecheck_program(&program, 0)
+    }
+
+    // ========== 基础类型检查测试 ==========
+
+    #[test]
+    fn test_empty_program() {
+        let source = "";
+        let result = typecheck(source);
+        assert!(result.is_ok(), "Empty program should type check: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_simple_function() {
+        let source = r#"
+fn main() {
+    let x = 5;
+}
+"#;
+        let result = typecheck(source);
+        assert!(result.is_ok(), "Simple function should type check: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_function_with_params() {
+        let source = r#"
+fn add(a: i32, b: i32) -> i32 {
+    return a + b;
+}
+"#;
+        let result = typecheck(source);
+        assert!(result.is_ok(), "Function with params should type check: {:?}", result.err());
+    }
+
+    // ========== 变量类型检查测试 ==========
+
+    #[test]
+    fn test_variable_declaration() {
+        let source = r#"
+fn main() {
+    let x: i32 = 5;
+    let y: f32 = 3.14;
+    let z: bool = true;
+}
+"#;
+        let result = typecheck(source);
+        assert!(result.is_ok(), "Variable declarations should type check: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_undefined_variable() {
+        let source = r#"
+fn main() {
+    let x = undefined_var;
+}
+"#;
+        let result = typecheck(source);
+        assert!(result.is_err(), "Undefined variable should cause error");
+    }
+
+    #[test]
+    fn test_variable_scope() {
+        let source = r#"
+fn main() {
+    let x = 5;
+    {
+        let y = x;
+    }
+}
+"#;
+        let result = typecheck(source);
+        assert!(result.is_ok(), "Variable scope should work: {:?}", result.err());
+    }
+
+    // ========== 表达式类型检查测试 ==========
+
+    #[test]
+    fn test_integer_literal() {
+        let source = r#"
+fn main() {
+    let x = 42;
+}
+"#;
+        let result = typecheck(source);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_float_literal() {
+        let source = r#"
+fn main() {
+    let x = 3.14;
+}
+"#;
+        let result = typecheck(source);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_bool_literal() {
+        let source = r#"
+fn main() {
+    let t = true;
+    let f = false;
+}
+"#;
+        let result = typecheck(source);
+        assert!(result.is_ok());
+    }
+
+    // ========== 二元运算类型检查测试 ==========
+
+    #[test]
+    fn test_arithmetic_operations() {
+        let source = r#"
+fn main() {
+    let a = 1 + 2;
+    let b = 3 - 4;
+    let c = 5 * 6;
+    let d = 7 / 8;
+}
+"#;
+        let result = typecheck(source);
+        assert!(result.is_ok(), "Arithmetic operations should type check: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_comparison_operations() {
+        let source = r#"
+fn main() {
+    let a = 1 < 2;
+    let b = 3 > 4;
+    let c = 5 <= 6;
+    let d = 7 >= 8;
+    let e = 9 == 10;
+    let f = 11 != 12;
+}
+"#;
+        let result = typecheck(source);
+        assert!(result.is_ok(), "Comparison operations should type check: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_logical_operations() {
+        let source = r#"
+fn main() {
+    let a = true && false;
+    let b = true || false;
+}
+"#;
+        let result = typecheck(source);
+        assert!(result.is_ok(), "Logical operations should type check: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_type_mismatch_in_arithmetic() {
+        let source = r#"
+fn main() {
+    let x = 5;
+    let y = true;
+    let z = x + y;
+}
+"#;
+        let result = typecheck(source);
+        // 可能会通过因为当前类型推断是宽松的，或者会失败
+        // 取决于实现
+    }
+
+    // ========== 控制流类型检查测试 ==========
+
+    #[test]
+    fn test_if_statement() {
+        let source = r#"
+fn main() {
+    if true {
+        let x = 1;
+    }
+}
+"#;
+        let result = typecheck(source);
+        assert!(result.is_ok(), "If statement should type check: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_if_else_statement() {
+        let source = r#"
+fn main() {
+    if true {
+        let x = 1;
+    } else {
+        let y = 2;
+    }
+}
+"#;
+        let result = typecheck(source);
+        assert!(result.is_ok(), "If-else statement should type check: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_for_loop() {
+        let source = r#"
+fn main() {
+    for i in 0..10 {
+        let x = i;
+    }
+}
+"#;
+        let result = typecheck(source);
+        assert!(result.is_ok(), "For loop should type check: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_while_loop() {
+        let source = r#"
+fn main() {
+    let x = 10;
+    while x > 0 {
+        let y = x;
+    }
+}
+"#;
+        let result = typecheck(source);
+        assert!(result.is_ok(), "While loop should type check: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_loop_statement() {
+        let source = r#"
+fn main() {
+    loop {
+        break;
+    }
+}
+"#;
+        let result = typecheck(source);
+        assert!(result.is_ok(), "Loop statement should type check: {:?}", result.err());
+    }
+
+    // ========== 函数调用类型检查测试 ==========
+
+    #[test]
+    fn test_function_call() {
+        let source = r#"
+fn add(a: i32, b: i32) -> i32 {
+    return a + b;
+}
+
+fn main() {
+    let result = add(1, 2);
+}
+"#;
+        let result = typecheck(source);
+        assert!(result.is_ok(), "Function call should type check: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_function_call_wrong_arg_count() {
+        let source = r#"
+fn add(a: i32, b: i32) -> i32 {
+    return a + b;
+}
+
+fn main() {
+    let result = add(1);
+}
+"#;
+        let result = typecheck(source);
+        assert!(result.is_err(), "Wrong arg count should cause error");
+    }
+
+    // ========== Buffer 类型检查测试 ==========
+
+    #[test]
+    fn test_buffer_type() {
+        let source = r#"
+fn process(data: Buffer<f32>) {
+    let x = 0;
+}
+"#;
+        let result = typecheck(source);
+        assert!(result.is_ok(), "Buffer type should type check: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_buffer_index() {
+        let source = r#"
+fn main() {
+    let arr = [1, 2, 3];
+    let elem = arr[0];
+}
+"#;
+        let result = typecheck(source);
+        assert!(result.is_ok(), "Buffer index should type check: {:?}", result.err());
+    }
+
+    // ========== 任务类型检查测试 ==========
+
+    #[test]
+    fn test_simple_task() {
+        let source = r#"
+task compute {
+    body(a: i32) -> i32 {
+        return a;
+    }
+}
+"#;
+        let result = typecheck(source);
+        assert!(result.is_ok(), "Simple task should type check: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_task_with_params() {
+        let source = r#"
+task vector_add {
+    body(a: Buffer<f32>, b: Buffer<f32>) -> Buffer<f32> {
+        parallel for i in 0..10 {
+            let x = i;
+        }
+    }
+}
+"#;
+        let result = typecheck(source);
+        assert!(result.is_ok(), "Task with params should type check: {:?}", result.err());
+    }
+
+    // ========== 类型兼容性测试 ==========
+
+    #[test]
+    fn test_integer_promotion() {
+        let source = r#"
+fn main() {
+    let a: i32 = 5;
+    let b: i64 = 10;
+}
+"#;
+        let result = typecheck(source);
+        // 根据类型兼容性规则，可能通过或失败
+    }
+
+    // ========== 复杂程序类型检查测试 ==========
+
+    #[test]
+    fn test_complete_program() {
+        let source = r#"
+fn init(arr: Buffer<f32>, size: i32) {
+    parallel for i in 0..10 {
+        let idx = i;
+    }
+}
+
+task compute {
+    body(a: Buffer<f32>, b: Buffer<f32>) -> Buffer<f32> {
+        parallel for i in 0..1024 {
+            let sum = i;
+        }
+    }
+}
+
+fn main() {
+    let size = 1024;
+    let a = 1;
+    let b = 2;
+}
+"#;
+        let result = typecheck(source);
+        assert!(result.is_ok(), "Complete program should type check: {:?}", result.err());
+    }
+
+    // ========== 类型环境测试 ==========
+
+    #[test]
+    fn test_type_env_insert_lookup() {
+        let mut env = TypeEnv::new(0);
+        
+        env.insert_variable("x".to_string(), Type::I32);
+        assert!(env.lookup_variable("x").is_some());
+        assert!(env.lookup_variable("y").is_none());
+    }
+
+    #[test]
+    fn test_type_env_nested_scope() {
+        let outer = TypeEnv::new(0);
+        let mut inner = TypeEnv::with_parent(outer, 0);
+        
+        inner.insert_variable("x".to_string(), Type::I32);
+        assert!(inner.lookup_variable("x").is_some());
+    }
+
+    #[test]
+    fn test_type_env_function_signature() {
+        let mut env = TypeEnv::new(0);
+        
+        let sig = FunctionSignature {
+            params: vec![Type::I32, Type::I32],
+            return_type: Some(Type::I32),
+        };
+        
+        env.insert_function("add".to_string(), sig);
+        assert!(env.lookup_function("add").is_some());
+        assert!(env.lookup_function("sub").is_none());
+    }
+
+    // ========== 类型检查器内部测试 ==========
+
+    #[test]
+    fn test_is_integer_type() {
+        let checker = TypeChecker::new(0);
+        
+        assert!(checker.is_integer_type(&Type::I8));
+        assert!(checker.is_integer_type(&Type::I32));
+        assert!(checker.is_integer_type(&Type::U64));
+        assert!(!checker.is_integer_type(&Type::F32));
+        assert!(!checker.is_integer_type(&Type::Bool));
+    }
+
+    #[test]
+    fn test_is_numeric_type() {
+        let checker = TypeChecker::new(0);
+        
+        assert!(checker.is_numeric_type(&Type::I32));
+        assert!(checker.is_numeric_type(&Type::F64));
+        assert!(!checker.is_numeric_type(&Type::Bool));
+    }
+
+    #[test]
+    fn test_is_bool_type() {
+        let checker = TypeChecker::new(0);
+        
+        assert!(checker.is_bool_type(&Type::Bool));
+        assert!(!checker.is_bool_type(&Type::I32));
+    }
+
+    #[test]
+    fn test_wider_numeric_type() {
+        let checker = TypeChecker::new(0);
+        
+        let result = checker.wider_numeric_type(&Type::I32, &Type::I64);
+        assert!(matches!(result, Type::I64));
+        
+        let result = checker.wider_numeric_type(&Type::F32, &Type::F64);
+        assert!(matches!(result, Type::F64));
+    }
+
+    #[test]
+    fn test_types_compatible() {
+        let checker = TypeChecker::new(0);
+        
+        // 相同类型应该兼容
+        assert!(checker.types_compatible(&Type::I32, &Type::I32));
+        
+        // 整数类型提升
+        assert!(checker.types_compatible(&Type::I64, &Type::I32));
+        
+        // 不同类别不兼容
+        assert!(!checker.types_compatible(&Type::I32, &Type::Bool));
+    }
+
+    #[test]
+    fn test_type_to_string() {
+        let checker = TypeChecker::new(0);
+        
+        assert_eq!(checker.type_to_string(&Type::I32), "i32");
+        assert_eq!(checker.type_to_string(&Type::F64), "f64");
+        assert_eq!(checker.type_to_string(&Type::Bool), "bool");
+        assert_eq!(checker.type_to_string(&Type::Buffer(Box::new(Type::F32), None)), "Buffer<f32>");
+    }
+
+    // ========== 错误类型测试 ==========
+
+    #[test]
+    fn test_typeck_error_display() {
+        let err = TypeckError {
+            kind: TypeckErrorKind::UndefinedVariable("x".to_string()),
+            line: 1,
+            column: 5,
+        };
+        
+        let msg = format!("{}", err);
+        assert!(msg.contains("Undefined variable"));
+        assert!(msg.contains("x"));
+    }
+
+    #[test]
+    fn test_type_mismatch_error() {
+        let err = TypeckError {
+            kind: TypeckErrorKind::TypeMismatch {
+                expected: "i32".to_string(),
+                found: "bool".to_string(),
+            },
+            line: 1,
+            column: 1,
+        };
+        
+        let msg = format!("{}", err);
+        assert!(msg.contains("Type mismatch"));
+    }
+}

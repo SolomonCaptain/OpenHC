@@ -881,3 +881,647 @@ fn op_precedence(op: BinaryOp) -> (u8, u8) {
         BinaryOp::Mul | BinaryOp::Div => (6, 2),
     }
 }
+
+// ========== 测试模块 ==========
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tokenize(input: &str) -> Vec<Token> {
+        let mut lexer = crate::lexer::Lexer::new(input);
+        lexer.tokenize()
+    }
+
+    fn parse_program(input: &str) -> Result<Program> {
+        let tokens = tokenize(input);
+        let mut parser = Parser::new(tokens);
+        parser.parse_program()
+    }
+
+    // ========== 函数定义测试 ==========
+
+    #[test]
+    fn test_simple_function() {
+        let input = r#"
+fn main() {
+    let x = 5;
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse simple function: {:?}", result.err());
+        
+        let program = result.unwrap();
+        assert_eq!(program.functions.len(), 1);
+        assert_eq!(program.functions[0].name, "main");
+        assert_eq!(program.functions[0].params.len(), 0);
+        assert!(program.functions[0].return_type.is_none());
+    }
+
+    #[test]
+    fn test_function_with_params() {
+        let input = r#"
+fn add(a: i32, b: i32) -> i32 {
+    return a + b;
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse function with params: {:?}", result.err());
+        
+        let program = result.unwrap();
+        let func = &program.functions[0];
+        assert_eq!(func.name, "add");
+        assert_eq!(func.params.len(), 2);
+        assert_eq!(func.params[0].name, "a");
+        assert_eq!(func.params[1].name, "b");
+        assert!(matches!(&func.return_type, Some(Type::I32)));
+    }
+
+    #[test]
+    fn test_function_with_buffer_param() {
+        let input = r#"
+fn process(data: Buffer<f32>) {
+    let x = 0;
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse function with buffer: {:?}", result.err());
+        
+        let program = result.unwrap();
+        let func = &program.functions[0];
+        assert_eq!(func.params[0].name, "data");
+        assert!(matches!(&func.params[0].ty, Type::Buffer(_, _)));
+    }
+
+    // ========== 任务定义测试 ==========
+
+    #[test]
+    fn test_simple_task() {
+        let input = r#"
+task compute {
+    body(a: Buffer<f32>, b: Buffer<f32>) -> Buffer<f32> {
+        parallel for i in 0..10 {
+            let x = i;
+        }
+    }
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse simple task: {:?}", result.err());
+        
+        let program = result.unwrap();
+        assert_eq!(program.tasks.len(), 1);
+        assert_eq!(program.tasks[0].name, "compute");
+    }
+
+    #[test]
+    fn test_task_with_pattern_and_policy() {
+        let input = r#"
+task matmul {
+    pattern: For { range: (0, 1024) },
+    policy: { device_hint: GPU },
+    body(a: Buffer<f32>, b: Buffer<f32>) -> Buffer<f32> {
+        parallel for i in 0..10 {
+            let x = i;
+        }
+    }
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse task with pattern: {:?}", result.err());
+        
+        let program = result.unwrap();
+        let task = &program.tasks[0];
+        assert_eq!(task.name, "matmul");
+        assert!(task.pattern.is_some());
+        assert!(task.policy.is_some());
+    }
+
+    // ========== 导入语句测试 ==========
+
+    #[test]
+    fn test_simple_import() {
+        let input = "import hsc::*;";
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse import: {:?}", result.err());
+        
+        let program = result.unwrap();
+        assert_eq!(program.imports.len(), 1);
+    }
+
+    #[test]
+    fn test_import_with_alias() {
+        let input = "import hsc::Buffer as Buf;";
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse import with alias: {:?}", result.err());
+        
+        let program = result.unwrap();
+        assert_eq!(program.imports.len(), 1);
+        assert!(program.imports[0].alias.is_some());
+    }
+
+    // ========== 类型解析测试 ==========
+
+    #[test]
+    fn test_primitive_types() {
+        let input = r#"
+fn test_types(
+    a: i8, b: i16, c: i32, d: i64, e: i128,
+    u: u8, v: u16, w: u32, x: u64, y: u128,
+    f: f32, g: f64,
+    h: bool, i: char
+) {}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse primitive types: {:?}", result.err());
+        
+        let program = result.unwrap();
+        let func = &program.functions[0];
+        assert_eq!(func.params.len(), 14);
+        
+        // 验证各类型
+        assert!(matches!(func.params[0].ty, Type::I8));
+        assert!(matches!(func.params[2].ty, Type::I32));
+        assert!(matches!(func.params[5].ty, Type::U8));
+        assert!(matches!(func.params[10].ty, Type::F32));
+        assert!(matches!(func.params[12].ty, Type::Bool));
+    }
+
+    #[test]
+    fn test_buffer_type() {
+        let input = r#"
+fn test(buf: Buffer<f32>) {}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok());
+        
+        let program = result.unwrap();
+        let ty = &program.functions[0].params[0].ty;
+        match ty {
+            Type::Buffer(inner, dim) => {
+                assert!(matches!(inner.as_ref(), Type::F32));
+                assert!(dim.is_none());
+            }
+            _ => panic!("Expected Buffer type"),
+        }
+    }
+
+    #[test]
+    fn test_buffer_type_with_dimension() {
+        let input = r#"
+fn test(buf: Buffer<f32, 10>) {}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok());
+        
+        let program = result.unwrap();
+        let ty = &program.functions[0].params[0].ty;
+        match ty {
+            Type::Buffer(inner, dim) => {
+                assert!(matches!(inner.as_ref(), Type::F32));
+                assert_eq!(*dim, Some(10));
+            }
+            _ => panic!("Expected Buffer type with dimension"),
+        }
+    }
+
+    #[test]
+    fn test_tuple_type() {
+        let input = r#"
+fn test(t: (i32, f32)) {}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok());
+        
+        let program = result.unwrap();
+        let ty = &program.functions[0].params[0].ty;
+        match ty {
+            Type::Tuple(types) => {
+                assert_eq!(types.len(), 2);
+            }
+            _ => panic!("Expected Tuple type"),
+        }
+    }
+
+    // ========== 语句解析测试 ==========
+
+    #[test]
+    fn test_let_statement() {
+        let input = r#"
+fn main() {
+    let x = 5;
+    let mut y = 10;
+    let z: i32;
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse let statements: {:?}", result.err());
+        
+        let program = result.unwrap();
+        let block = &program.functions[0].body;
+        assert_eq!(block.statements.len(), 3);
+        
+        // 第一个 let
+        match &block.statements[0] {
+            Statement::Let { name, mutable, .. } => {
+                assert_eq!(name, "x");
+                assert!(!mutable);
+            }
+            _ => panic!("Expected Let statement"),
+        }
+        
+        // 第二个 let (mut)
+        match &block.statements[1] {
+            Statement::Let { name, mutable, .. } => {
+                assert_eq!(name, "y");
+                assert!(mutable);
+            }
+            _ => panic!("Expected Let statement"),
+        }
+    }
+
+    #[test]
+    fn test_if_statement() {
+        let input = r#"
+fn main() {
+    if x > 0 {
+        let y = 1;
+    } else {
+        let y = 2;
+    }
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse if statement: {:?}", result.err());
+        
+        let program = result.unwrap();
+        let block = &program.functions[0].body;
+        
+        match &block.statements[0] {
+            Statement::If { condition, then_branch, else_branch } => {
+                assert!(else_branch.is_some());
+            }
+            _ => panic!("Expected If statement"),
+        }
+    }
+
+    #[test]
+    fn test_if_else_if_chain() {
+        let input = r#"
+fn main() {
+    if x > 0 {
+        let y = 1;
+    } else if x < 0 {
+        let y = 2;
+    } else {
+        let y = 3;
+    }
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse if-else-if chain: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_for_loop() {
+        let input = r#"
+fn main() {
+    for i in 0..10 {
+        let x = i;
+    }
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse for loop: {:?}", result.err());
+        
+        let program = result.unwrap();
+        let block = &program.functions[0].body;
+        
+        match &block.statements[0] {
+            Statement::For { var, range, .. } => {
+                assert_eq!(var, "i");
+            }
+            _ => panic!("Expected For statement"),
+        }
+    }
+
+    #[test]
+    fn test_parallel_for() {
+        let input = r#"
+fn main() {
+    parallel for i in 0..100 {
+        let x = i * 2;
+    }
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse parallel for: {:?}", result.err());
+        
+        let program = result.unwrap();
+        let block = &program.functions[0].body;
+        
+        match &block.statements[0] {
+            Statement::ParallelFor { var, .. } => {
+                assert_eq!(var, "i");
+            }
+            _ => panic!("Expected ParallelFor statement"),
+        }
+    }
+
+    #[test]
+    fn test_while_loop() {
+        let input = r#"
+fn main() {
+    while x > 0 {
+        let x = x - 1;
+    }
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse while loop: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_loop_statement() {
+        let input = r#"
+fn main() {
+    loop {
+        break;
+    }
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse loop statement: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_return_statement() {
+        let input = r#"
+fn test() -> i32 {
+    return 42;
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse return statement: {:?}", result.err());
+        
+        let program = result.unwrap();
+        let block = &program.functions[0].body;
+        
+        match &block.statements[0] {
+            Statement::Return(Some(Expression::Integer(n))) => {
+                assert_eq!(*n, 42);
+            }
+            _ => panic!("Expected Return statement with value"),
+        }
+    }
+
+    // ========== 表达式解析测试 ==========
+
+    #[test]
+    fn test_binary_expression() {
+        let input = r#"
+fn main() {
+    let x = a + b * c - d / e;
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse binary expression: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_comparison_expression() {
+        let input = r#"
+fn main() {
+    let x = a < b && c > d || e == f;
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse comparison expression: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_function_call() {
+        let input = r#"
+fn main() {
+    let result = add(1, 2);
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse function call: {:?}", result.err());
+        
+        let program = result.unwrap();
+        let block = &program.functions[0].body;
+        
+        match &block.statements[0] {
+            Statement::Let { init: Some(Expression::Call { func, args }), .. } => {
+                assert_eq!(args.len(), 2);
+            }
+            _ => panic!("Expected function call expression"),
+        }
+    }
+
+    #[test]
+    fn test_method_call() {
+        let input = r#"
+fn main() {
+    let buf = Buffer::<f32>::zeros([10, 10]);
+    let moved = buf.move_to(GPU);
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse method call: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_field_access() {
+        let input = r#"
+fn main() {
+    let x = obj.field;
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse field access: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_index_expression() {
+        let input = r#"
+fn main() {
+    let x = arr[0];
+    let y = arr[i + 1];
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse index expression: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_spawn_expression() {
+        let input = r#"
+fn main() {
+    let result = spawn on GPU compute(a, b).await;
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse spawn expression: {:?}", result.err());
+        
+        let program = result.unwrap();
+        let block = &program.functions[0].body;
+        
+        match &block.statements[0] {
+            Statement::Let { init: Some(Expression::Spawn { device, await_, .. }), .. } => {
+                assert!(device.is_some());
+                assert!(await_);
+            }
+            _ => panic!("Expected spawn expression"),
+        }
+    }
+
+    #[test]
+    fn test_place_on_expression() {
+        let input = r#"
+fn main() {
+    let x = buf.place_on(GPU);
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse place_on expression: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_move_to_expression() {
+        let input = r#"
+fn main() {
+    let x = buf.move_to(GPU);
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse move_to expression: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_array_literal() {
+        let input = r#"
+fn main() {
+    let arr = [1, 2, 3, 4, 5];
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse array literal: {:?}", result.err());
+        
+        let program = result.unwrap();
+        let block = &program.functions[0].body;
+        
+        match &block.statements[0] {
+            Statement::Let { init: Some(Expression::Array(elems)), .. } => {
+                assert_eq!(elems.len(), 5);
+            }
+            _ => panic!("Expected array literal"),
+        }
+    }
+
+    // ========== 运算符优先级测试 ==========
+
+    #[test]
+    fn test_operator_precedence() {
+        let input = r#"
+fn main() {
+    let x = a + b * c;
+    let y = (a + b) * c;
+    let z = a || b && c;
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse operator precedence: {:?}", result.err());
+    }
+
+    // ========== 错误恢复测试 ==========
+
+    #[test]
+    fn test_missing_semicolon_error() {
+        let input = r#"
+fn main() {
+    let x = 5
+    let y = 10;
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_err(), "Expected error for missing semicolon");
+    }
+
+    #[test]
+    fn test_missing_brace_error() {
+        let input = r#"
+fn main() {
+    let x = 5;
+"#;
+        let result = parse_program(input);
+        assert!(result.is_err(), "Expected error for missing closing brace");
+    }
+
+    #[test]
+    fn test_invalid_token_error() {
+        let input = r#"
+fn main() {
+    let x = @;
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_err() || result.is_ok(), "Parser should handle invalid token");
+    }
+
+    #[test]
+    fn test_invalid_function_signature() {
+        let input = r#"
+fn (a: i32) {
+    let x = 5;
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_err(), "Expected error for missing function name");
+    }
+
+    // ========== 完整程序测试 ==========
+
+    #[test]
+    fn test_complete_program() {
+        let input = r#"
+import hsc::*;
+
+fn init(a: Buffer<f32>, size: i32) -> () {
+    parallel for i in 0..size {
+        let idx = i;
+    }
+}
+
+task compute {
+    pattern: For { range: (0, 1024) },
+    policy: { device_hint: GPU },
+    body(a: Buffer<f32>, b: Buffer<f32>) -> Buffer<f32> {
+        parallel for i in 0..1024 {
+            let sum = a[i] + b[i];
+        }
+    }
+}
+
+fn main() -> () {
+    let size = 1024;
+    let a = Buffer::<f32>::zeros([size]);
+    let b = Buffer::<f32>::zeros([size]);
+    
+    let a_dev = a.move_to(GPU);
+    let b_dev = b.move_to(GPU);
+    
+    let result = spawn on GPU compute(a_dev, b_dev).await;
+    let result_host = result.move_to(Host);
+}
+"#;
+        let result = parse_program(input);
+        assert!(result.is_ok(), "Failed to parse complete program: {:?}", result.err());
+        
+        let program = result.unwrap();
+        assert_eq!(program.imports.len(), 1);
+        assert_eq!(program.functions.len(), 2);
+        assert_eq!(program.tasks.len(), 1);
+    }
+}

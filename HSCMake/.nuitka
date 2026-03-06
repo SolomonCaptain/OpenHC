@@ -1,0 +1,23 @@
+# Nuitka 配置文件
+---
+command-line-arguments:
+  - hscmake/cli.py
+
+options:
+  standalone: true
+  onefile: true
+  enable-plugin:
+    - click
+  include-package:
+    - hscmake
+  include-package-data:
+    - hscmake
+  python-flag:
+    - no_site
+  output-file: dist/hscmake.exe
+
+# 如果需要处理外部依赖
+module-hints:
+  hscmake.*:
+    plugin-packages:
+      - click

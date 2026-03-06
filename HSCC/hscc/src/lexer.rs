@@ -415,3 +415,504 @@ impl Lexer {
         tokens
     }
 }
+
+// ========== 测试模块 ==========
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ========== 关键字测试 ==========
+
+    #[test]
+    fn test_keywords() {
+        let keywords = [
+            ("fn", TokenKind::Fn),
+            ("let", TokenKind::Let),
+            ("mut", TokenKind::Mut),
+            ("if", TokenKind::If),
+            ("else", TokenKind::Else),
+            ("while", TokenKind::While),
+            ("loop", TokenKind::Loop),
+            ("break", TokenKind::Break),
+            ("continue", TokenKind::Continue),
+            ("return", TokenKind::Return),
+            ("task", TokenKind::Task),
+            ("spawn", TokenKind::Spawn),
+            ("on", TokenKind::On),
+            ("await", TokenKind::Await),
+            ("pipeline", TokenKind::Pipeline),
+            ("graph", TokenKind::Graph),
+            ("parallel", TokenKind::Parallel),
+            ("for", TokenKind::For),
+            ("reduce", TokenKind::Reduce),
+            ("scan", TokenKind::Scan),
+            ("true", TokenKind::True),
+            ("false", TokenKind::False),
+            ("import", TokenKind::Import),
+            ("as", TokenKind::As),
+        ];
+
+        for (input, expected) in keywords {
+            let mut lexer = Lexer::new(input);
+            let tokens = lexer.tokenize();
+            assert_eq!(tokens.len(), 1, "Expected 1 token for '{}', got {}", input, tokens.len());
+            assert_eq!(tokens[0].kind, expected, "Failed for keyword '{}'", input);
+        }
+    }
+
+    #[test]
+    fn test_type_keywords() {
+        let type_keywords = [
+            ("i8", TokenKind::I8),
+            ("i16", TokenKind::I16),
+            ("i32", TokenKind::I32),
+            ("i64", TokenKind::I64),
+            ("i128", TokenKind::I128),
+            ("u8", TokenKind::U8),
+            ("u16", TokenKind::U16),
+            ("u32", TokenKind::U32),
+            ("u64", TokenKind::U64),
+            ("u128", TokenKind::U128),
+            ("f32", TokenKind::F32),
+            ("f64", TokenKind::F64),
+            ("bool", TokenKind::Bool),
+            ("char", TokenKind::Char),
+            ("Buffer", TokenKind::Buffer),
+        ];
+
+        for (input, expected) in type_keywords {
+            let mut lexer = Lexer::new(input);
+            let tokens = lexer.tokenize();
+            assert_eq!(tokens.len(), 1, "Expected 1 token for '{}', got {}", input, tokens.len());
+            assert_eq!(tokens[0].kind, expected, "Failed for type keyword '{}'", input);
+        }
+    }
+
+    #[test]
+    fn test_device_keywords() {
+        let device_keywords = [
+            ("GPU", TokenKind::GPU),
+            ("NPU", TokenKind::NPU),
+            ("FPGA", TokenKind::FPGA),
+            ("CPU", TokenKind::CPU),
+            ("Host", TokenKind::Host),
+        ];
+
+        for (input, expected) in device_keywords {
+            let mut lexer = Lexer::new(input);
+            let tokens = lexer.tokenize();
+            assert_eq!(tokens.len(), 1);
+            assert_eq!(tokens[0].kind, expected);
+        }
+    }
+
+    // ========== 标识符测试 ==========
+
+    #[test]
+    fn test_identifiers() {
+        let test_cases = [
+            ("x", "x"),
+            ("_underscore", "_underscore"),
+            ("camelCase", "camelCase"),
+            ("snake_case", "snake_case"),
+            ("var123", "var123"),
+            ("_123var", "_123var"),
+            ("MyType", "MyType"),
+        ];
+
+        for (input, expected_name) in test_cases {
+            let mut lexer = Lexer::new(input);
+            let tokens = lexer.tokenize();
+            assert_eq!(tokens.len(), 1);
+            match &tokens[0].kind {
+                TokenKind::Identifier(name) => assert_eq!(name, expected_name),
+                _ => panic!("Expected Identifier, got {:?}", tokens[0].kind),
+            }
+        }
+    }
+
+    // ========== 数字字面量测试 ==========
+
+    #[test]
+    fn test_integer_literals() {
+        let test_cases = [
+            ("0", "0"),
+            ("42", "42"),
+            ("123_456", "123_456"),
+            ("0i32", "0"),
+            ("42u64", "42"),
+            ("100i8", "100"),
+        ];
+
+        for (input, expected_value) in test_cases {
+            let mut lexer = Lexer::new(input);
+            let tokens = lexer.tokenize();
+            assert_eq!(tokens.len(), 1, "Failed for input '{}'", input);
+            match &tokens[0].kind {
+                TokenKind::Integer(value) => assert_eq!(value, expected_value, "Failed for input '{}'", input),
+                _ => panic!("Expected Integer, got {:?}", tokens[0].kind),
+            }
+        }
+    }
+
+    #[test]
+    fn test_float_literals() {
+        let test_cases = [
+            ("3.14", "3.14"),
+            ("0.0", "0.0"),
+            ("1.5f32", "1.5"),
+            ("2.718f64", "2.718"),
+            ("1e10", "1e10"),
+            ("1.5e-3", "1.5e-3"),
+            ("2.5E+10", "2.5E+10"),
+        ];
+
+        for (input, expected_value) in test_cases {
+            let mut lexer = Lexer::new(input);
+            let tokens = lexer.tokenize();
+            assert_eq!(tokens.len(), 1, "Failed for input '{}'", input);
+            match &tokens[0].kind {
+                TokenKind::Float(value) => assert_eq!(value, expected_value, "Failed for input '{}'", input),
+                _ => panic!("Expected Float for '{}', got {:?}", input, tokens[0].kind),
+            }
+        }
+    }
+
+    #[test]
+    fn test_integer_vs_range_disambiguation() {
+        // 测试整数后跟范围运算符的情况
+        let mut lexer = Lexer::new("0..10");
+        let tokens = lexer.tokenize();
+        assert_eq!(tokens.len(), 3);
+        match &tokens[0].kind {
+            TokenKind::Integer(v) => assert_eq!(v, "0"),
+            _ => panic!("Expected Integer"),
+        }
+        assert_eq!(tokens[1].kind, TokenKind::DotDot);
+        match &tokens[2].kind {
+            TokenKind::Integer(v) => assert_eq!(v, "10"),
+            _ => panic!("Expected Integer"),
+        }
+    }
+
+    // ========== 字符串和字符测试 ==========
+
+    #[test]
+    fn test_string_literals() {
+        let test_cases = [
+            (r#""hello""#, "hello"),
+            (r#""""#, ""),
+            (r#""hello world""#, "hello world"),
+            (r#""escape\n""#, "escape\\n"),
+            (r#""tab\t""#, "tab\\t"),
+        ];
+
+        for (input, expected) in test_cases {
+            let mut lexer = Lexer::new(input);
+            let tokens = lexer.tokenize();
+            assert_eq!(tokens.len(), 1, "Failed for input '{}'", input);
+            match &tokens[0].kind {
+                TokenKind::String(value) => assert_eq!(value, expected, "Failed for input '{}'", input),
+                _ => panic!("Expected String, got {:?}", tokens[0].kind),
+            }
+        }
+    }
+
+    #[test]
+    fn test_char_literals() {
+        let test_cases = [
+            ("'a'", "a"),
+            ("'0'", "0"),
+            ("'\\n'", "\\n"),
+            ("'\\t'", "\\t"),
+        ];
+
+        for (input, expected) in test_cases {
+            let mut lexer = Lexer::new(input);
+            let tokens = lexer.tokenize();
+            assert_eq!(tokens.len(), 1, "Failed for input '{}'", input);
+            match &tokens[0].kind {
+                TokenKind::CharLiteral(value) => assert_eq!(value, expected, "Failed for input '{}'", input),
+                _ => panic!("Expected CharLiteral, got {:?}", tokens[0].kind),
+            }
+        }
+    }
+
+    // ========== 运算符测试 ==========
+
+    #[test]
+    fn test_single_char_operators() {
+        let operators = [
+            ("+", TokenKind::Plus),
+            ("-", TokenKind::Minus),
+            ("*", TokenKind::Star),
+            ("/", TokenKind::Slash),
+            ("%", TokenKind::Percent),
+            ("=", TokenKind::Eq),
+            ("!", TokenKind::Not),
+            ("<", TokenKind::Lt),
+            (">", TokenKind::Gt),
+            ("&", TokenKind::And),
+            ("|", TokenKind::Or),
+            ("^", TokenKind::Xor),
+            ("~", TokenKind::Tilde),
+            ("@", TokenKind::At),
+            ("#", TokenKind::Hash),
+            ("$", TokenKind::Dollar),
+            ("?", TokenKind::Question),
+        ];
+
+        for (input, expected) in operators {
+            let mut lexer = Lexer::new(input);
+            let tokens = lexer.tokenize();
+            assert_eq!(tokens.len(), 1, "Failed for operator '{}'", input);
+            assert_eq!(tokens[0].kind, expected, "Failed for operator '{}'", input);
+        }
+    }
+
+    #[test]
+    fn test_multi_char_operators() {
+        let operators = [
+            ("==", TokenKind::EqEq),
+            ("!=", TokenKind::Ne),
+            ("<=", TokenKind::Le),
+            (">=", TokenKind::Ge),
+            ("&&", TokenKind::AndAnd),
+            ("||", TokenKind::OrOr),
+            ("+=", TokenKind::PlusEq),
+            ("-=", TokenKind::MinusEq),
+            ("*=", TokenKind::StarEq),
+            ("/=", TokenKind::SlashEq),
+            ("%=", TokenKind::PercentEq),
+            ("&=", TokenKind::AndEq),
+            ("|=", TokenKind::OrEq),
+            ("^=", TokenKind::XorEq),
+            ("<<", TokenKind::Shl),
+            (">>", TokenKind::Shr),
+            ("<<=", TokenKind::ShlEq),
+            (">>=", TokenKind::ShrEq),
+            ("->", TokenKind::Arrow),
+            ("=>", TokenKind::FatArrow),
+            ("::", TokenKind::ColonColon),
+            ("..", TokenKind::DotDot),
+            ("...", TokenKind::DotDotDot),
+            ("|>", TokenKind::PipeGt),
+            ("<|", TokenKind::LtPipe),
+        ];
+
+        for (input, expected) in operators {
+            let mut lexer = Lexer::new(input);
+            let tokens = lexer.tokenize();
+            assert_eq!(tokens.len(), 1, "Failed for operator '{}', got {} tokens", input, tokens.len());
+            assert_eq!(tokens[0].kind, expected, "Failed for operator '{}'", input);
+        }
+    }
+
+    // ========== 分隔符测试 ==========
+
+    #[test]
+    fn test_delimiters() {
+        let delimiters = [
+            ("{", TokenKind::LBrace),
+            ("}", TokenKind::RBrace),
+            ("[", TokenKind::LBracket),
+            ("]", TokenKind::RBracket),
+            ("(", TokenKind::LParen),
+            (")", TokenKind::RParen),
+            (",", TokenKind::Comma),
+            (";", TokenKind::Semicolon),
+            (":", TokenKind::Colon),
+            (".", TokenKind::Dot),
+        ];
+
+        for (input, expected) in delimiters {
+            let mut lexer = Lexer::new(input);
+            let tokens = lexer.tokenize();
+            assert_eq!(tokens.len(), 1);
+            assert_eq!(tokens[0].kind, expected);
+        }
+    }
+
+    // ========== 注释测试 ==========
+
+    #[test]
+    fn test_line_comments() {
+        let input = r#"
+let x = 5; // 这是一个注释
+let y = 10;
+"#;
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer.tokenize();
+        
+        // 验证注释被忽略
+        let kinds: Vec<_> = tokens.iter().map(|t| &t.kind).collect();
+        assert!(!kinds.iter().any(|k| matches!(k, TokenKind::Comment)));
+        assert!(kinds.contains(&&TokenKind::Let));
+        assert!(kinds.contains(&&TokenKind::Identifier("x".to_string())));
+        assert!(kinds.contains(&&TokenKind::Identifier("y".to_string())));
+    }
+
+    #[test]
+    fn test_block_comments() {
+        let input = r#"
+let x = 5; /* 这是
+多行注释 */
+let y = 10;
+"#;
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer.tokenize();
+        
+        // 验证块注释被忽略
+        assert!(tokens.iter().any(|t| matches!(t.kind, TokenKind::Identifier(ref s) if s == "x")));
+        assert!(tokens.iter().any(|t| matches!(t.kind, TokenKind::Identifier(ref s) if s == "y")));
+    }
+
+    // ========== 位置信息测试 ==========
+
+    #[test]
+    fn test_token_positions() {
+        let input = "let x = 5;";
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer.tokenize();
+
+        // let 应该在 1:1
+        assert_eq!(tokens[0].line, 1);
+        assert_eq!(tokens[0].column, 1);
+
+        // x 应该在 1:5
+        assert_eq!(tokens[1].line, 1);
+        assert_eq!(tokens[1].column, 5);
+    }
+
+    #[test]
+    fn test_multiline_positions() {
+        let input = "let x = 5;\nlet y = 10;";
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer.tokenize();
+
+        // 找到 y 标识符
+        let y_token = tokens.iter().find(|t| matches!(&t.kind, TokenKind::Identifier(s) if s == "y"));
+        assert!(y_token.is_some());
+        let y_token = y_token.unwrap();
+        
+        // y 应该在第 2 行
+        assert_eq!(y_token.line, 2);
+        assert_eq!(y_token.column, 5);
+    }
+
+    // ========== 复合表达式测试 ==========
+
+    #[test]
+    fn test_complex_expression() {
+        let input = "let result = (a + b) * c / d;";
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer.tokenize();
+
+        let expected_kinds = vec![
+            TokenKind::Let,
+            TokenKind::Identifier("result".to_string()),
+            TokenKind::Eq,
+            TokenKind::LParen,
+            TokenKind::Identifier("a".to_string()),
+            TokenKind::Plus,
+            TokenKind::Identifier("b".to_string()),
+            TokenKind::RParen,
+            TokenKind::Star,
+            TokenKind::Identifier("c".to_string()),
+            TokenKind::Slash,
+            TokenKind::Identifier("d".to_string()),
+            TokenKind::Semicolon,
+        ];
+
+        assert_eq!(tokens.len(), expected_kinds.len());
+        for (i, (token, expected)) in tokens.iter().zip(expected_kinds.iter()).enumerate() {
+            assert_eq!(&token.kind, expected, "Token {} mismatch", i);
+        }
+    }
+
+    #[test]
+    fn test_function_definition() {
+        let input = "fn add(a: i32, b: i32) -> i32 { return a + b; }";
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer.tokenize();
+
+        assert!(tokens.iter().any(|t| t.kind == TokenKind::Fn));
+        assert!(tokens.iter().any(|t| matches!(&t.kind, TokenKind::Identifier(s) if s == "add")));
+        assert!(tokens.iter().any(|t| t.kind == TokenKind::I32));
+        assert!(tokens.iter().any(|t| t.kind == TokenKind::Arrow));
+        assert!(tokens.iter().any(|t| t.kind == TokenKind::Return));
+    }
+
+    #[test]
+    fn test_buffer_type() {
+        let input = "Buffer<f32, 10>";
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer.tokenize();
+
+        let expected_kinds = vec![
+            TokenKind::Buffer,
+            TokenKind::Lt,
+            TokenKind::F32,
+            TokenKind::Comma,
+            TokenKind::Integer("10".to_string()),
+            TokenKind::Gt,
+        ];
+
+        assert_eq!(tokens.len(), expected_kinds.len());
+        for (token, expected) in tokens.iter().zip(expected_kinds.iter()) {
+            assert_eq!(&token.kind, expected);
+        }
+    }
+
+    #[test]
+    fn test_import_statement() {
+        let input = "import hsc::*;";
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer.tokenize();
+
+        assert!(tokens.iter().any(|t| t.kind == TokenKind::Import));
+        assert!(tokens.iter().any(|t| matches!(&t.kind, TokenKind::Identifier(s) if s == "hsc")));
+        assert!(tokens.iter().any(|t| t.kind == TokenKind::ColonColon));
+        assert!(tokens.iter().any(|t| t.kind == TokenKind::Star));
+    }
+
+    // ========== 边界情况测试 ==========
+
+    #[test]
+    fn test_empty_input() {
+        let mut lexer = Lexer::new("");
+        let tokens = lexer.tokenize();
+        assert!(tokens.is_empty());
+    }
+
+    #[test]
+    fn test_whitespace_only() {
+        let mut lexer = Lexer::new("   \n\t\n   ");
+        let tokens = lexer.tokenize();
+        assert!(tokens.is_empty());
+    }
+
+    #[test]
+    fn test_consecutive_operators() {
+        let input = "a===b";
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer.tokenize();
+        
+        // 应该解析为 a == = b 或者 a === b（取决于语法）
+        assert!(tokens.len() >= 3);
+        assert!(matches!(&tokens[0].kind, TokenKind::Identifier(s) if s == "a"));
+        assert_eq!(tokens[1].kind, TokenKind::EqEq);
+    }
+
+    #[test]
+    fn test_underscores_in_numbers() {
+        let mut lexer = Lexer::new("1_000_000");
+        let tokens = lexer.tokenize();
+        assert_eq!(tokens.len(), 1);
+        match &tokens[0].kind {
+            TokenKind::Integer(v) => assert_eq!(v, "1_000_000"),
+            _ => panic!("Expected Integer"),
+        }
+    }
+}
