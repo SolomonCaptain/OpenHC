@@ -2,7 +2,7 @@ import ast
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .model import Project, Target, TargetType, Language, SourceFile
+from hscmake.model import Project, Target, TargetType, Language, SourceFile
 
 class HSCMakeParser(ast.NodeVisitor):
     def __init__(self):

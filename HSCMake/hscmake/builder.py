@@ -3,8 +3,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import List, Optional
 
-from .model import Language, Project, Target
-from .rules import BuildRule, CppNinjaRule, RustCargoRule, TypeScriptTSCRule
+from hscmake.model import Language, Project, Target
+from hscmake.rules import BuildRule, CppNinjaRule, RustCargoRule, TypeScriptTSCRule
 
 
 class BuildPlanner:

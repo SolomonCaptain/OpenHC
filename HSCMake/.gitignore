@@ -1,3 +1,7 @@
 hscmake.egg-info
 test
 hscmake/__pycache__/
+cli.build/
+cli.dist/
+cli.onefile-build/
+dist/

@@ -9,3 +9,20 @@ toml = "1.0.1"
 serde = { version = "1.0.228", features = ["derive"] }
 regex = "1.12.3"
 anyhow = "1.0.101"
+
+[dev-dependencies]
+# 测试相关依赖
+pretty_assertions = "1.4"
+
+[profile.test]
+# 测试配置
+opt-level = 0
+debug = true
+debug-assertions = true
+overflow-checks = true
+
+[profile.release]
+# 发布配置
+opt-level = 3
+debug = false
+lto = true

@@ -235,7 +235,7 @@ static hscir_value_t* create_and_store_value(hscir_builder_t* builder, std::shar
 hscir_value_t* hscir_builder_create_constant_i32(hscir_builder_t* builder, int32_t value)
 {
     auto type = TypeManager::getInstance().getIntegerType(32, true);
-    auto val = builder->builder->createConstant(type, value);
+    auto val = builder->builder->createConstant(type, static_cast<int64_t>(value));
     return create_and_store_value(builder, val);
 }
 
@@ -270,7 +270,7 @@ hscir_value_t* hscir_builder_create_constant_f64(hscir_builder_t* builder, doubl
 hscir_value_t* hscir_builder_create_constant_bool(hscir_builder_t* builder, int value)
 {
     auto type = TypeManager::getInstance().getIntegerType(1, false);
-    auto val = builder->builder->createConstant(type, value ? 1 : 0);
+    auto val = builder->builder->createConstant(type, static_cast<int64_t>(value ? 1 : 0));
     return create_and_store_value(builder, val);
 }
 
@@ -284,28 +284,29 @@ hscir_value_t* hscir_builder_create_constant(hscir_builder_t* builder, hscir_typ
 // ========== 二元操作 ==========
 hscir_value_t* hscir_builder_create_binary_op(hscir_builder_t* builder, const char* op_name, hscir_value_t* lhs, hscir_value_t* rhs)
 {
-    auto op = std::make_unique<Operation>(op_name);
     auto lhsVal = reinterpret_cast<Value*>(lhs);
     auto rhsVal = reinterpret_cast<Value*>(rhs);
 
-    if (lhsVal)
-    {
-        auto sharedLhs = std::shared_ptr<Value>(lhsVal, [](Value*){}); // non-owning
-        op->addOperation(sharedLhs);
-    }
-    if (rhsVal)
-    {
-        auto sharedRhs = std::shared_ptr<Value>(rhsVal, [](Value*){}); // non-owning
-        op->addOperation(sharedRhs);
-    }
+    std::shared_ptr<Value> sharedLhs = lhsVal ? std::shared_ptr<Value>(lhsVal, [](Value*){}) : nullptr;
+    std::shared_ptr<Value> sharedRhs = rhsVal ? std::shared_ptr<Value>(rhsVal, [](Value*){}) : nullptr;
 
-    // 结果类型与操作数相同
-    if (lhsVal)
-    {
-        op->addResultType(lhsVal->getType());
-    }
+    std::unique_ptr<Operation> op;
+    std::string name(op_name);
 
-    auto result = std::make_shared<OpResult>(op->getResultTypes().empty() ? nullptr : op->getResultTypes()[0], op.get(), 0);
+    if (name == "add")
+        op = std::make_unique<AddOp>(sharedLhs, sharedRhs);
+    else if (name == "sub")
+        op = std::make_unique<SubOp>(sharedLhs, sharedRhs);
+    else if (name == "mul")
+        op = std::make_unique<MulOp>(sharedLhs, sharedRhs);
+    else if (name == "div")
+        op = std::make_unique<DivOp>(sharedLhs, sharedRhs);
+    else if (name == "mod")
+        op = std::make_unique<ModOp>(sharedLhs, sharedRhs);
+    else
+        op = std::make_unique<Operation>(name);
+
+    auto result = op->getResultTypes().empty() ? nullptr : op->getResult(0);
     builder->operations.push_back(std::move(op));
     return create_and_store_value(builder, result);
 }
@@ -404,7 +405,9 @@ hscir_value_t* hscir_builder_create_spawn(hscir_builder_t* builder, hscir_value_
     }
 
     auto taskVal = std::shared_ptr<Value>(reinterpret_cast<Value*>(task), [](Value*){});
-    auto op = builder->builder->createSpawnOp(taskVal, argVec, await != 0);
+
+    // 简化处理，使用 "task" 作为默认任务名
+    auto op = std::make_unique<SpawnOp>(taskVal, "task", argVec, await != 0);
     builder->operations.push_back(std::move(op));
     return nullptr;
 }
@@ -413,45 +416,40 @@ hscir_value_t* hscir_builder_create_place_on(hscir_builder_t* builder, hscir_val
 {
     auto bufVal = std::shared_ptr<Value>(reinterpret_cast<Value*>(buffer), [](Value*){});
     auto devVal = std::shared_ptr<Value>(reinterpret_cast<Value*>(device), [](Value*){});
-    auto op = builder->builder->createPlaceOnOp(bufVal, devVal);
+    auto op = std::make_unique<PlaceOnOp>(bufVal, devVal);
+    auto result = op->getResult(0);
     builder->operations.push_back(std::move(op));
-    return nullptr;
+    return create_and_store_value(builder, result);
 }
 
 hscir_value_t* hscir_builder_create_move_to(hscir_builder_t* builder, hscir_value_t* buffer, hscir_value_t* device)
 {
-    // 类似 place_on
     auto bufVal = std::shared_ptr<Value>(reinterpret_cast<Value*>(buffer), [](Value*){});
     auto devVal = std::shared_ptr<Value>(reinterpret_cast<Value*>(device), [](Value*){});
-    auto op = std::make_unique<Operation>("hsc.move_to");
-    op->addOperation(bufVal);
-    op->addOperation(devVal);
+    auto op = std::make_unique<MoveToOp>(bufVal, devVal);
+    auto result = op->getResult(0);
     builder->operations.push_back(std::move(op));
-    return nullptr;
+    return create_and_store_value(builder, result);
 }
 
 // ========== 控制流 ==========
 void hscir_builder_create_return(hscir_builder_t* builder, hscir_value_t* value)
 {
-    auto op = std::make_unique<Operation>("hsc.return");
-    if (value)
-    {
-        auto val = std::shared_ptr<Value>(reinterpret_cast<Value*>(value), [](Value*){});
-        op->addOperation(val);
-        op->addResultType(val->getType());
-    }
+    auto val = value ? std::shared_ptr<Value>(reinterpret_cast<Value*>(value), [](Value*){}) : nullptr;
+    auto op = std::make_unique<ReturnOp>(val);
     builder->operations.push_back(std::move(op));
 }
 
 hscir_value_t* hscir_builder_create_call(hscir_builder_t* builder, const char* func_name, hscir_value_t** args, size_t n_args)
 {
+    // 简化实现，实际需要更完整的 CallOp
     auto op = std::make_unique<Operation>("hsc.call");
     op->setAttribute("callee", std::make_unique<StringAttr>(func_name));
 
     for (size_t i = 0; i < n_args; ++i)
     {
         auto val = std::shared_ptr<Value>(reinterpret_cast<Value*>(args[i]), [](Value*){});
-        op->addOperation(val);
+        op->addOperand(val);
     }
 
     builder->operations.push_back(std::move(op));
@@ -461,26 +459,20 @@ hscir_value_t* hscir_builder_create_call(hscir_builder_t* builder, const char* f
 // ========== 内存操作 ==========
 hscir_value_t* hscir_builder_create_load(hscir_builder_t* builder, hscir_value_t* buffer, hscir_value_t* index)
 {
-    auto op = std::make_unique<Operation>("hsc.load");
     auto bufVal = std::shared_ptr<Value>(reinterpret_cast<Value*>(buffer), [](Value*){});
     auto idxVal = std::shared_ptr<Value>(reinterpret_cast<Value*>(index), [](Value*){});
-    op->addOperation(bufVal);
-    op->addOperation(idxVal);
-
-    // TODO: 设置结果类型为元素类型
+    auto op = std::make_unique<LoadOp>(bufVal, std::vector<std::shared_ptr<Value>>{idxVal});
+    auto result = op->getResult(0);
     builder->operations.push_back(std::move(op));
-    return nullptr;
+    return create_and_store_value(builder, result);
 }
 
 void hscir_builder_create_store(hscir_builder_t* builder, hscir_value_t* value, hscir_value_t* buffer, hscir_value_t* index)
 {
-    auto op = std::make_unique<Operation>("hsc.store");
     auto val = std::shared_ptr<Value>(reinterpret_cast<Value*>(value), [](Value*){});
     auto bufVal = std::shared_ptr<Value>(reinterpret_cast<Value*>(buffer), [](Value*){});
     auto idxVal = std::shared_ptr<Value>(reinterpret_cast<Value*>(index), [](Value*){});
-    op->addOperation(val);
-    op->addOperation(bufVal);
-    op->addOperation(idxVal);
+    auto op = std::make_unique<StoreOp>(val, bufVal, std::vector<std::shared_ptr<Value>>{idxVal});
     builder->operations.push_back(std::move(op));
 }
 

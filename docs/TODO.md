@@ -39,24 +39,42 @@
 **文件**: `HSCC/hscc/src/lower.rs` (新建)
 
 #### 编译器测试框架
-- [ ] 添加词法分析器单元测试
-- [ ] 添加语法分析器单元测试
-- [ ] 添加代码生成器集成测试
-- [ ] 添加端到端编译测试
-- [ ] 添加错误恢复测试
+- [x] 添加词法分析器单元测试
+- [x] 添加语法分析器单元测试
+- [x] 添加代码生成器集成测试
+- [x] 添加端到端编译测试
+- [x] 添加错误恢复测试
 
 **命令**: `cargo test`
+
+**测试覆盖**:
+- `lexer.rs`: 关键字、标识符、数字字面量、字符串、运算符、分隔符、注释、位置信息
+- `parser.rs`: 函数定义、任务定义、类型解析、语句解析、表达式解析、错误处理
+- `codegen.rs`: CUDA 代码生成、Buffer 运行时、任务内核生成、函数生成
+- `typeck.rs`: 类型推断、类型兼容性、作用域管理、错误报告
+- `main.rs`: 完整编译流水线测试、错误恢复测试、边界情况测试
 
 ### 1.2 HSCIR 中间表示完善
 
 #### 操作系统扩展
-- [ ] 添加算术操作 (`AddOp`, `SubOp`, `MulOp`, `DivOp`)
-- [ ] 添加内存操作 (`LoadOp`, `StoreOp`, `AllocOp`)
-- [ ] 添加控制流操作 (`BranchOp`, `CondBranchOp`, `ReturnOp`)
-- [ ] 添加并行操作 (`ParallelForOp`, `ReduceOp`)
-- [ ] 添加设备操作 (`SpawnOp`, `SyncOp`, `MoveOp`)
+- [x] 添加算术操作 (`AddOp`, `SubOp`, `MulOp`, `DivOp`, `ModOp`, `CmpOp`)
+- [x] 添加内存操作 (`LoadOp`, `StoreOp`, `AllocOp`)
+- [x] 添加控制流操作 (`BranchOp`, `CondBranchOp`, `ReturnOp`)
+- [x] 添加并行操作 (`ParallelForOp`, `ReduceOp`)
+- [x] 添加设备操作 (`SpawnOp`, `SyncOp`, `MoveOp`, `PlaceOnOp`)
+- [x] 添加常量操作 (`ConstantOp`)
+- [x] 添加函数/任务操作 (`FuncOp`, `TaskOp`)
 
-**文件**: `HSCIR/include/hscir/Operations.h`
+**文件**: `HSCIR/include/hscir/Operations.h`, `HSCIR/src/Operations.cpp`
+
+**已实现的操作类**:
+- **算术操作**: `AddOp`, `SubOp`, `MulOp`, `DivOp`, `ModOp`, `CmpOp`
+- **内存操作**: `AllocOp`, `LoadOp`, `StoreOp`
+- **控制流操作**: `BranchOp`, `CondBranchOp`, `ReturnOp`
+- **并行操作**: `ParallelForOp`, `ReduceOp`
+- **设备操作**: `SpawnOp`, `SyncOp`, `MoveToOp`, `PlaceOnOp`
+- **常量操作**: `ConstantOp`
+- **函数操作**: `FuncOp`, `TaskOp`
 
 #### IR 验证器
 - [ ] 实现类型验证

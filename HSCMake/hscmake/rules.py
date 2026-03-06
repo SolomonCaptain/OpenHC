@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List, Optional
 from pex import toml
 
-from .model import Target, Language
+from hscmake.model import Target, Language
 
 
 class BuildRule(ABC):

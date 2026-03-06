@@ -3,8 +3,8 @@ import pickle
 import sys
 from pathlib import Path
 
-from .parser import HSCMakeParser
-from .builder import BuildPlanner, BuildExecutor
+from hscmake.parser import HSCMakeParser
+from hscmake.builder import BuildPlanner, BuildExecutor
 
 @click.group()
 def cli():
