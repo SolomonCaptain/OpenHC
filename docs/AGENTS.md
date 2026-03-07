@@ -27,6 +27,7 @@ OpenHC/
 ├── HSCLang/        # 编程语言设计与规范
 ├── HSCMake/        # 构建系统 (Python 3.13+)
 ├── HSCIDE/         # IDE 与渲染管线
+├── HSCPlugins/     # 插件系统 (C++23)
 └── docs/           # 文档
 ```
 
@@ -39,6 +40,8 @@ OpenHC/
 **路径**: `HSCC/hscc/`
 
 **技术栈**: Rust (Edition 2024)
+
+**完成度**: 75%
 
 **依赖**:
 - `toml` - 配置文件解析
@@ -59,9 +62,9 @@ HSCLang源文件 (.hl)
        ↓
   HSCIR 中间表示 (lower.rs)
        ↓
-  代码生成器 (codegen.rs / triton/)
+  代码生成器 (codegen.rs / triton/ / npu/)
        ↓
-  CUDA 代码 (.cu) 或 Triton Python (.py)
+  CUDA 代码 (.cu) / Triton Python (.py) / NPU 图
        ↓
   可执行文件
 ```
@@ -74,6 +77,14 @@ HSCLang源文件 (.hl)
 - `lower.rs` - AST 到 HSCIR 转换，实现程序、任务、控制流转换
 - `codegen.rs` - CUDA/HIP 代码生成器
 - `triton/` - Triton DSL 后端支持
+  - `mod.rs` - 模块入口
+  - `types.rs` - Triton 类型映射
+  - `generator.rs` - Triton 代码生成器
+- `npu/` - NPU 后端支持
+  - `mod.rs` - 模块入口
+  - `types.rs` - NPU 类型系统
+  - `graph.rs` - 计算图构建
+  - `backends/` - 后端抽象（昇腾、TPU 等）
 - `compile.rs` - 编译驱动，调用 NVCC 编译 CUDA 代码
 - `config.rs` - 配置文件解析（HSCC.toml）
 
@@ -85,7 +96,7 @@ cargo build --release
 
 **运行**:
 ```bash
-hscc <project-directory> [--backend=cuda|triton]
+hscc <project-directory> [--backend=cuda|triton|npu]
 ```
 
 **测试**:
@@ -113,6 +124,8 @@ arch = "sm_61"
 **路径**: `HSCIR/`
 
 **技术栈**: C++23, CMake 3.25+
+
+**完成度**: 70%
 
 **核心类型系统** (`include/hscir/Types.h`):
 - `Type` - 类型基类，支持 `Integer`、`Float`、`Buffer`、`Function`、`None` 五种类型
@@ -179,6 +192,8 @@ cmake --build build
 
 **路径**: `HSCLang/`
 
+**完成度**: 80%
+
 **设计哲学**:
 - 显式与隐式的平衡：关键异构特征显式表达，底层调度隐式优化
 - 渐进式暴露：初学者使用简单范式，专家可深入调优
@@ -212,6 +227,8 @@ cmake --build build
 **路径**: `HSCMake/`
 
 **技术栈**: Python 3.13+, Click, pex
+
+**完成度**: 70%
 
 **安装**:
 ```bash
@@ -265,6 +282,8 @@ rust_target(
 
 **路径**: `HSCIDE/`
 
+**完成度**: 25%
+
 **组件**:
 - `ide/HSC Studio/` - 主 IDE（.slnx 解决方案，.NET/C#）
 - `ide/backend/BBF/` - Python 后端
@@ -282,17 +301,32 @@ rpc GetPNGStream(PNGRequest) returns (stream PNGChunk)
 
 ---
 
+### HSCPlugins - 插件系统
+
+**路径**: `HSCPlugins/`
+
+**技术栈**: C++23, CMake
+
+**完成度**: 10%
+
+**组件**:
+- `include/` - 插件接口定义
+- `plugin-manager/` - 插件管理器
+- `plugins/` - 插件实现
+
+---
+
 ## 开发约定
 
 ### 代码风格
 
 **Rust (HSCC)**:
 - 使用 `anyhow::Result` 进行错误处理
-- 模块化设计：`lexer`, `parser`, `ast`, `typeck`, `lower`, `codegen`, `compile`
+- 模块化设计：`lexer`, `parser`, `ast`, `typeck`, `lower`, `codegen`, `triton`, `npu`, `compile`
 - 使用 `extern crate` 声明外部依赖
 - 测试使用 `pretty_assertions` 增强断言输出
 
-**C++ (HSCIR)**:
+**C++ (HSCIR/HSCPlugins)**:
 - C++23 标准
 - 使用智能指针 (`shared_ptr`) 管理类型对象
 - 遵循 RAII 原则
@@ -362,11 +396,12 @@ cmake --build build
 
 | 子项目 | 语言 | 完成度 | 测试覆盖 | 优先级 |
 |--------|------|--------|----------|--------|
-| HSCC (编译器) | Rust | 60% | ✅ 单元/集成/端到端测试 | 🔴 高 |
+| HSCC (编译器) | Rust | 75% | ✅ 单元/集成/端到端测试 | 🔴 高 |
 | HSCIR (中间表示) | C++23 | 70% | ❌ 无 | 🔴 高 |
 | HSCLang (语言规范) | - | 80% | - | 🟡 中 |
 | HSCMake (构建系统) | Python | 70% | ❌ 无 | 🟡 中 |
-| HSCIDE (IDE) | 多语言 | 20% | ❌ 无 | 🟢 低 |
+| HSCIDE (IDE) | 多语言 | 25% | ❌ 无 | 🟢 低 |
+| HSCPlugins (插件) | C++23 | 10% | ❌ 无 | 🟢 低 |
 
 ---
 
@@ -388,6 +423,14 @@ cmake --build build
 - 实现算子融合和 CUDA Graph
 - 使用 Triton DSL 支持跨平台
 
+### NPU 支持 (TODO.NPU.md)
+
+支持多种 NPU 架构：
+- 华为昇腾（Ascend 910/310）
+- Google TPU
+- Intel NPU
+- 寒武纪
+
 ### MLIR 集成 (TODO.MLIR.md)
 
 构建分层 IR 体系：
@@ -403,6 +446,7 @@ cmake --build build
 - 项目处于活跃开发状态，API 可能随时变化
 - 支持 Windows 平台开发
 - HSCC 编译器已有完整的单元测试、集成测试和端到端测试覆盖
+- HSCIR 和 HSCMake 缺少单元测试，是当前需要改进的重点
 
 ---
 
@@ -411,6 +455,7 @@ cmake --build build
 - 语言设计规范: `HSCLang/README.md`
 - FPGA 开发计划: `docs/TODO.FPGA.md`
 - GPU 开发计划: `docs/TODO.GPU.md`
+- NPU 开发计划: `docs/TODO.NPU.md`
 - MLIR 集成计划: `docs/TODO.MLIR.md`
 - 开发路线图: `docs/TODO.md`
 - 开发者指南: `docs/DEVELOPER_GUIDE.md`

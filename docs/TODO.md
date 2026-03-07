@@ -8,11 +8,52 @@
 
 | 子项目 | 语言 | 完成度 | 测试覆盖 | 优先级 |
 |--------|------|--------|----------|--------|
-| HSCC (编译器) | Rust | 60% | ✅ 单元/集成/端到端测试 | 🔴 高 |
+| HSCC (编译器) | Rust | 75% | ✅ 单元/集成/端到端测试 | 🔴 高 |
 | HSCIR (中间表示) | C++23 | 70% | ❌ 无 | 🔴 高 |
 | HSCLang (语言规范) | - | 80% | - | 🟡 中 |
 | HSCMake (构建系统) | Python | 70% | ❌ 无 | 🟡 中 |
-| HSCIDE (IDE) | 多语言 | 20% | ❌ 无 | 🟢 低 |
+| HSCIDE (IDE) | 多语言 | 25% | ❌ 无 | 🟢 低 |
+
+### 子项目详细状态
+
+#### HSCC 编译器 (75%)
+- ✅ 词法分析器 (`lexer.rs`) - 完整实现
+- ✅ 语法分析器 (`parser.rs`) - 完整实现
+- ✅ AST 定义 (`ast.rs`) - 完整实现
+- ✅ 类型检查器 (`typeck.rs`) - 完整实现
+- ✅ IR 降低 (`lower.rs`) - 完整实现
+- ✅ CUDA 后端 (`codegen.rs`) - 完整实现
+- ✅ Triton DSL 后端 (`triton/`) - 完整实现
+- ✅ NPU 后端 (`npu/`) - 基础实现
+- 🔄 HIP 后端 - 待实现
+- 🔄 CPU 后端 - 待实现
+
+#### HSCIR 中间表示 (70%)
+- ✅ 类型系统 (`Types.h`) - 完整实现
+- ✅ 操作系统 (`Operations.h`) - 完整实现
+- ✅ Builder 模式 (`Builder.h`) - 完整实现
+- ✅ C API (`CAPI.h`) - 完整实现
+- ❌ IR 验证器 - 待实现
+- ❌ IR 解析器 - 待实现
+- ❌ 单元测试 - 待添加
+
+#### HSCMake 构建系统 (70%)
+- ✅ 解析器 (`parser.py`) - 完整实现
+- ✅ 项目模型 (`model.py`) - 完整实现
+- ✅ 构建器 (`builder.py`) - 完整实现
+- ✅ 构建规则 (`rules.py`) - 完整实现
+- ✅ CLI (`cli.py`) - 完整实现
+- ✅ C++/Rust/TypeScript 目标支持
+- ❌ CUDA 目标支持 - 待添加
+- ❌ 单元测试 - 待添加
+
+#### HSCIDE (25%)
+- ✅ 渲染管线服务端 (`RenderPipeline/server/`)
+- ✅ 渲染管线客户端 (`RenderPipeline/client/`)
+- ✅ Go 下载器 (`GoDownloader/`)
+- ✅ Vulkan 渲染器 (`VulkanRenderer/`)
+- 🔄 主 IDE (`ide/HSC Studio/`) - 开发中
+- ❌ LSP 服务器 - 待实现
 
 ---
 
@@ -27,7 +68,7 @@
 - [x] 添加语义错误报告机制
 - [x] 添加类型可视化调试输出
 
-**文件**: `HSCC/hscc/src/typeck.rs` (新建)
+**文件**: `HSCC/hscc/src/typeck.rs`
 
 #### AST 到 HSCIR 转换
 - [x] 设计 AST -> HSCIR 映射规则
@@ -36,7 +77,7 @@
 - [x] 实现 `Buffer` 类型映射
 - [x] 实现控制流转换 (for/if/while -> Block)
 
-**文件**: `HSCC/hscc/src/lower.rs` (新建)
+**文件**: `HSCC/hscc/src/lower.rs`
 
 #### 编译器测试框架
 - [x] 添加词法分析器单元测试
@@ -105,7 +146,26 @@
 - [ ] 生成 cuBLAS/cuRAND 库调用
 - [ ] 支持 FP16/BF16 低精度计算
 
-**文件**: `HSCC/hscc/src/codegen/cuda.rs` (重构)
+**文件**: `HSCC/hscc/src/codegen.rs`
+
+#### Triton DSL 后端
+- [x] 基础 Triton 代码生成框架
+- [x] 类型映射 (HSCIR → Triton)
+- [x] 操作映射
+- [ ] 算子融合优化
+- [ ] 自动调优支持
+
+**文件**: `HSCC/hscc/src/triton/`
+
+#### NPU 后端
+- [x] NPU 类型系统 (`npu/types.rs`)
+- [x] NPU 计算图表示 (`npu/graph.rs`)
+- [x] NPU 后端抽象 (`npu/backends/`)
+- [ ] 昇腾后端实现
+- [ ] TPU 后端实现
+- [ ] Intel NPU 后端实现
+
+**文件**: `HSCC/hscc/src/npu/`
 
 #### 新后端支持
 - [ ] 添加 HIP 后端 (AMD GPU 支持)
@@ -117,8 +177,9 @@
 ### 2.2 HSCMake 构建系统完善
 
 #### 多语言支持
-- [ ] 完善 C++ 目标构建规则
-- [ ] 完善 Rust 目标构建规则
+- [x] C++ 目标构建规则
+- [x] Rust 目标构建规则
+- [x] TypeScript 目标构建规则
 - [ ] 添加 CUDA 目标支持
 - [ ] 添加混合语言目标支持
 
@@ -190,24 +251,15 @@
 - [ ] 实现设备内存管理
 - [ ] 实现 kernel 启动接口
 
-### 3.3 GPU 优化 (详见 `docs/TODO.GPU.md`)
+### 3.3 NPU 支持 (详见 `docs/TODO.NPU.md`)
 
-#### 内核优化
-- [ ] 引入高性能计算库 (cuBLAS, rocBLAS)
-- [ ] 支持低精度计算 (FP16, BF16)
-- [ ] 实现算子融合
-- [x] **Triton DSL 集成规划** (详见 `docs/TODO.TRITON.md`)
-
-#### Triton DSL 集成 (详见 `docs/TODO.TRITON.md`)
-- [ ] 建立 HSCIR 到 Triton-IR 的基础转换框架
-- [ ] 实现基本类型映射和操作映射
-- [ ] 支持 NVIDIA 和 AMD GPU 跨平台编译
-- [ ] 实现算子融合和自动调优
-
-#### 执行优化
-- [ ] 实现 CUDA Graph 捕获
-- [ ] 实现异步任务调度
-- [ ] 实现流水线并行
+#### NPU 后端完善
+- [x] 设计 NPU 类型系统
+- [x] 设计 NPU 计算图表示
+- [x] 设计 NPU 后端抽象接口
+- [ ] 实现昇腾后端
+- [ ] 实现 TPU 后端
+- [ ] 实现 Intel NPU 后端
 
 ---
 
@@ -258,7 +310,12 @@
 - [ ] 添加编译器选项管理
 - [ ] 改进错误处理 (使用 `thiserror` 替代 `anyhow` 在库代码中)
 
-### 5.3 兼容性
+### 5.3 测试覆盖
+- [ ] 为 HSCIR 添加单元测试
+- [ ] 为 HSCMake 添加单元测试
+- [ ] 添加集成测试
+
+### 5.4 兼容性
 - [ ] 支持 Linux 平台
 - [ ] 支持 macOS 平台 (Apple Silicon)
 - [ ] 测试不同 CUDA 版本兼容性
@@ -267,20 +324,25 @@
 
 ## 六、里程碑规划
 
-### Milestone 1: 最小可用编译器 (MVP)
+### Milestone 1: 最小可用编译器 (MVP) ✅
 **目标**: 能够编译并运行简单的 HSCLang 程序
-**状态**: 🔄 进行中
+**状态**: ✅ 已完成
 
 - [x] 完成类型检查器
 - [x] 完成 HSCIR 基础操作
 - [x] 实现 AST -> HSCIR 转换
 - [x] 添加基础测试
+- [x] 实现 CUDA 后端
+- [x] 实现 Triton DSL 后端
+- [x] 实现 NPU 后端基础框架
 
 ### Milestone 2: 多后端支持
-**目标**: 支持 GPU 和 CPU 后端
+**目标**: 支持 GPU、CPU、NPU 多种后端
 
 - [ ] 重构 CUDA 后端
+- [ ] 添加 HIP 后端 (AMD GPU)
 - [ ] 添加 CPU 后端
+- [ ] 完善 NPU 后端
 - [ ] 完善示例项目
 - [ ] 性能基准测试
 
@@ -290,7 +352,7 @@
 - [ ] 定义 hsc 方言
 - [ ] 实现渐进式降低
 - [ ] 支持 GPU/FPGA/NPU 后端
-- [ ] 完成 Triton DSL 集成 (详见 `docs/TODO.TRITON.md`)
+- [ ] 完成 Triton DSL 集成
   - [ ] Phase 1: 基础设施 (HSCIR → Triton-IR 转换)
   - [ ] Phase 2: 核心功能 (并行循环、归约、任务启动)
   - [ ] Phase 3: 高级优化 (算子融合、多设备支持、自动调优)
@@ -309,7 +371,7 @@
 
 ### 开发环境
 - CUDA Toolkit 12.0+
-- CMake 3.20+
+- CMake 3.25+
 - Rust 1.75+ (Edition 2024)
 - Python 3.13+
 - C++23 兼容编译器 (MSVC 2022, GCC 13, Clang 16)
@@ -331,6 +393,7 @@
 | 性能优化工作量大 | 中 | 优先正确性，性能渐进优化 |
 | Triton API 变更 | 中 | 版本锁定，抽象层隔离 |
 | Python 运行时开销 | 中 | AOT 编译，内核缓存优化 |
+| HSCIR/HSCMake 缺少测试 | 中 | 优先添加单元测试框架 |
 
 ---
 
@@ -342,7 +405,8 @@
 - [vLLM 项目](https://github.com/vllm-project/vllm)
 - [OpenAI Triton](https://triton-lang.org/)
 - [NVIDIA CUDA Tile IR](https://developer.nvidia.com/blog/advancing-gpu-programming-with-the-cuda-tile-ir-backend-for-openai-triton/)
+- [华为昇腾 CANN](https://www.hiascend.com/document)
 
 ---
 
-*最后更新: 2026-03-06*
+*最后更新: 2026-03-07*
