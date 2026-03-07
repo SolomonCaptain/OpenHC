@@ -1,6 +1,49 @@
 //! 诊断系统模块
 //!
-//! 提供统一的错误、警告、提示信息收集与报告机制
+//! 提供统一的错误、警告、提示信息收集与报告机制。
+//!
+//! # 概述
+//!
+//! 本模块实现了一个结构化的诊断系统，用于收集、组织和报告编译过程中的各种诊断信息。
+//! 支持多种诊断级别（错误、警告、提示、帮助）和详细的源代码位置信息。
+//!
+//! # 主要组件
+//!
+//! - [`Diagnostic`] - 单条诊断信息，包含错误码、级别、位置、消息和修复建议
+//! - [`DiagnosticCollector`] - 诊断收集器，用于累积和管理诊断信息
+//! - [`DiagnosticLevel`] - 诊断级别枚举
+//! - [`SourceSpan`] - 源代码位置范围
+//! - [`error_codes`] - 预定义的错误码常量
+//!
+//! # 使用示例
+//!
+//! ```rust
+//! use hscc::diagnostic::{Diagnostic, DiagnosticCollector, error_codes};
+//!
+//! let mut collector = DiagnosticCollector::new();
+//!
+//! // 创建一个错误诊断
+//! let diag = Diagnostic::error(error_codes::UNDEFINED_VARIABLE)
+//!     .at_file("main.hl")
+//!     .at_point("main.hl", 10, 5)
+//!     .message("Undefined variable 'x'")
+//!     .suggest(SourceSpan::single(10, 5), "y", "Did you mean 'y'?");
+//!
+//! collector.add(diag);
+//!
+//! // 输出诊断
+//! collector.emit();
+//! ```
+//!
+//! # 错误码规范
+//!
+//! 错误码格式为 `HSCXXXX`，其中：
+//! - `HSC0xxx` - 语法错误
+//! - `HSC1xxx` - 类型错误
+//! - `HSC2xxx` - 语义错误
+//! - `HSC3xxx` - 性能警告
+//! - `HSC4xxx` - 目标特定错误
+//! - `HSC5xxx` - 性能分析与优化
 
 use std::fmt;
 
@@ -230,6 +273,16 @@ impl Diagnostic {
         self.tags.push(tag);
         self
     }
+
+    /// 添加备注信息
+    pub fn with_note(mut self, msg: impl Into<String>) -> Self {
+        self.related.push(RelatedInfo::new(
+            self.file.clone(),
+            self.span,
+            msg,
+        ));
+        self
+    }
 }
 
 impl fmt::Display for Diagnostic {
@@ -419,6 +472,13 @@ pub mod error_codes {
     pub const NPU_UNSUPPORTED_OPERATOR: &str = "HSC4201";
     pub const NPU_DATA_LAYOUT_MISMATCH: &str = "HSC4202";
     pub const NPU_PRECISION_NOT_SUPPORTED: &str = "HSC4203";
+
+    // === 性能分析与优化 (HSC5xxx) ===
+    pub const PERFORMANCE_ISSUE: &str = "HSC5001";
+    pub const OPTIMIZATION_SUGGESTION: &str = "HSC5002";
+    pub const MEMORY_BOUND_KERNEL: &str = "HSC5003";
+    pub const LOW_PARALLELISM: &str = "HSC5004";
+    pub const HIGH_TRANSFER_OVERHEAD: &str = "HSC5005";
 }
 
 #[cfg(test)]

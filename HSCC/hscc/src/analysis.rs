@@ -1,10 +1,72 @@
 //! Pattern/Policy 一致性检查模块
 //!
-//! 提供针对 HSCLang 的 pattern 和 policy 语义验证，包括：
-//! - Pattern 类型合法性检查
-//! - Policy 字段有效性检查
-//! - Pattern 与 Policy 匹配性检查
-//! - 目标设备兼容性检查
+//! 提供针对 HSCLang 的 pattern 和 policy 语义验证。
+//!
+//! # 概述
+//!
+//! HSCLang 的执行模型基于 Pattern（执行模式）和 Policy（执行策略）的组合。
+//! 本模块负责验证这些声明的正确性和一致性，确保生成的代码能够正确执行。
+//!
+//! # Pattern 类型
+//!
+//! | Pattern | 描述 | 适用设备 |
+//! |---------|------|----------|
+//! | `For` | 顺序/并行循环 | CPU, GPU, FPGA |
+//! | `Reduce` | 归约操作 | CPU, GPU |
+//! | `Scan` | 前缀扫描 | CPU, GPU |
+//! | `TaskGraph` | 任务图 | All |
+//! | `Pipeline` | 流水线 | FPGA |
+//! | `DataParallel` | 数据并行 | GPU, NPU |
+//!
+//! # Policy 字段
+//!
+//! | 字段 | 描述 | 有效值 |
+//! |------|------|--------|
+//! | `device_hint` | 目标设备 | CPU, GPU, FPGA, NPU |
+//! | `granularity` | 执行粒度 | Fine, Medium, Coarse |
+//! | `priority` | 执行优先级 | Low, Normal, High, Critical |
+//! | `recursive_split` | 递归分治 | true, false |
+//!
+//! # 主要组件
+//!
+//! - [`PatternPolicyAnalyzer`] - 主分析器
+//! - [`PatternKind`] - 支持的 Pattern 类型
+//! - [`PolicyField`] - Policy 字段定义
+//! - [`PatternValidation`] - Pattern 验证结果
+//! - [`PolicyValidation`] - Policy 验证结果
+//!
+//! # 使用示例
+//!
+//! ```rust
+//! use hscc::analysis::PatternPolicyAnalyzer;
+//! use hscc::diagnostic::DiagnosticCollector;
+//! use hscc::ast::Task;
+//!
+//! let mut analyzer = PatternPolicyAnalyzer::new();
+//! let mut collector = DiagnosticCollector::new();
+//!
+//! analyzer.validate_task(&task, &mut collector);
+//!
+//! if collector.has_errors() {
+//!     collector.emit();
+//! }
+//! ```
+//!
+//! # 验证规则
+//!
+//! ## Pattern 验证
+//! - Pattern 类型必须是已知的
+//! - Pattern 参数必须符合该类型的约束
+//! - `independent` 声明必须与实际依赖一致
+//!
+//! ## Policy 验证
+//! - 设备提示必须是有效设备
+//! - 粒度必须与 Pattern 匹配
+//! - 优先级设置必须合理
+//!
+//! ## 一致性验证
+//! - Pattern 和 Policy 的组合必须有效
+//! - 目标设备必须支持该 Pattern
 
 use crate::ast::*;
 use crate::diagnostic::{Diagnostic, DiagnosticCollector, DiagnosticTag, SourceSpan, error_codes};

@@ -1,10 +1,64 @@
 //! 数据流分析模块
 //!
-//! 提供高级数据流分析功能，包括：
-//! - 可达定义分析 (Reaching Definitions)
-//! - 活性变量分析 (Live Variables)
-//! - 循环独立性检测 (Loop Independence Detection)
-//! - 依赖关系分析 (Dependence Analysis)
+//! 提供高级数据流分析功能，用于检测程序中的数据依赖和潜在的并行性问题。
+//!
+//! # 概述
+//!
+//! 数据流分析是编译器优化和正确性验证的重要基础。本模块实现了多种经典的数据流分析算法，
+//! 特别针对 HSCLang 的并行执行特性进行了扩展。
+//!
+//! # 主要功能
+//!
+//! - **可达定义分析**：确定每个程序点上哪些定义是有效的
+//! - **活性变量分析**：确定每个程序点上哪些变量的值会被后续使用
+//! - **循环独立性检测**：分析循环迭代之间是否存在数据依赖
+//! - **依赖关系分析**：识别 RAW、WAR、WAW 等依赖类型
+//!
+//! # 主要组件
+//!
+//! - [`DataFlowAnalyzer`] - 主分析器
+//! - [`DefinitionPoint`] - 变量定义点表示
+//! - [`UsePoint`] - 变量使用点表示
+//! - [`DataFlowResult`] - 分析结果
+//! - [`LoopDependenceInfo`] - 循环依赖信息
+//!
+//! # 使用示例
+//!
+//! ```rust
+//! use hscc::dataflow::DataFlowAnalyzer;
+//! use hscc::ast::Block;
+//!
+//! let mut analyzer = DataFlowAnalyzer::new();
+//! let result = analyzer.analyze_block(&block);
+//!
+//! // 检查循环独立性
+//! if let Some(loop_info) = result.loop_dependencies.get("loop_var") {
+//!     if !loop_info.is_independent {
+//!         println!("Loop has dependencies!");
+//!     }
+//! }
+//! ```
+//!
+//! # 分析算法
+//!
+//! ## 可达定义分析
+//!
+//! 使用前向数据流分析，计算每个程序点的入和出定义集合：
+//! - `IN[B] = ∪(OUT[P])` for all predecessors P of B
+//! - `OUT[B] = gen[B] ∪ (IN[B] - kill[B])`
+//!
+//! ## 活性变量分析
+//!
+//! 使用后向数据流分析，计算每个程序点的活入和活出变量集合：
+//! - `OUT[B] = ∪(IN[S])` for all successors S of B
+//! - `IN[B] = use[B] ∪ (OUT[B] - def[B])`
+//!
+//! ## 循环独立性检测
+//!
+//! 检测循环体内的数组访问模式，识别是否存在跨迭代的依赖：
+//! - RAW (Read After Write) / Flow dependence
+//! - WAR (Write After Read) / Anti dependence
+//! - WAW (Write After Write) / Output dependence
 
 use crate::ast::*;
 use std::collections::{HashMap, HashSet, BTreeSet};

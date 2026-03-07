@@ -13,6 +13,7 @@ mod semantic;
 mod dataflow;
 mod analysis;
 mod target_check;
+mod performance;
 mod hscir;
 mod lower;
 mod triton;

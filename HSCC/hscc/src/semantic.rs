@@ -1,10 +1,52 @@
 //! 语义分析器模块
 //!
-//! 提供基于 AST 的语义分析，包括：
-//! - 任务依赖图构建与循环检测
-//! - Pattern/Policy 语义验证
-//! - 设备亲和性分析
-//! - 数据流基础分析
+//! 提供基于 AST 的语义分析，检测 HSCLang 程序中的语义错误和潜在问题。
+//!
+//! # 概述
+//!
+//! 本模块实现了编译器前端的语义分析阶段，在类型检查之后、IR 生成之前运行。
+//! 主要负责检测那些需要跨语句、跨函数分析的语义问题。
+//!
+//! # 主要功能
+//!
+//! - **任务依赖分析**：构建任务依赖图，检测循环依赖
+//! - **循环独立性验证**：验证 `independent` 声明是否与实际依赖冲突
+//! - **设备亲和性分析**：检查设备放置和数据传输的一致性
+//! - **Pattern/Policy 验证**：验证执行模式和策略的语义正确性
+//!
+//! # 主要组件
+//!
+//! - [`SemanticAnalyzer`] - 主分析器，协调整个分析流程
+//! - [`TaskDependencyGraph`] - 任务依赖图，用于检测循环依赖
+//! - [`SemanticError`] - 语义错误类型枚举
+//! - [`SemanticWarning`] - 语义警告类型枚举
+//!
+//! # 使用示例
+//!
+//! ```rust
+//! use hscc::semantic::SemanticAnalyzer;
+//! use hscc::diagnostic::DiagnosticCollector;
+//! use hscc::ast::Program;
+//!
+//! let mut analyzer = SemanticAnalyzer::new();
+//! let mut collector = DiagnosticCollector::new();
+//!
+//! analyzer.set_file("main.hl");
+//! analyzer.analyze(&program, &mut collector);
+//!
+//! if collector.has_errors() {
+//!     collector.emit();
+//! }
+//! ```
+//!
+//! # 分析流程
+//!
+//! 1. 构建任务依赖图
+//! 2. 检测任务图中的循环依赖
+//! 3. 分析每个任务的 Pattern 和 Policy
+//! 4. 执行数据流分析
+//! 5. 检查设备相关约束
+//! 6. 收集并报告诊断信息
 
 use crate::ast::*;
 use crate::diagnostic::{Diagnostic, DiagnosticCollector, DiagnosticTag, SourceSpan, error_codes};
