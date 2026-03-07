@@ -8,6 +8,11 @@ mod ast;
 mod codegen;
 mod compile;
 mod typeck;
+mod diagnostic;
+mod semantic;
+mod dataflow;
+mod analysis;
+mod target_check;
 mod hscir;
 mod lower;
 mod triton;
@@ -17,6 +22,8 @@ use anyhow::Result;
 use std::env;
 use std::fs;
 use std::path::Path;
+use diagnostic::DiagnosticCollector;
+use semantic::SemanticAnalyzer;
 
 #[cfg(not(test))]
 fn main() -> Result<()> {
@@ -50,6 +57,9 @@ fn main() -> Result<()> {
     let source_path = Path::new(project_dir).join("src").join("main.hl");
     let source = fs::read_to_string(&source_path)?;
     
+    // 创建诊断收集器
+    let mut diag_collector = DiagnosticCollector::new();
+    
     // 词法分析
     let mut lexer = lexer::Lexer::new(&source);
     let tokens = lexer.tokenize();
@@ -59,7 +69,29 @@ fn main() -> Result<()> {
     let ast = parser.parse_program()?;
     
     // 类型检查
-    typeck::TypeChecker::typecheck_program(&ast, 1)?;
+    if let Err(e) = typeck::TypeChecker::typecheck_program(&ast, 0) {
+        diag_collector.add(
+            diagnostic::Diagnostic::error(diagnostic::error_codes::TYPE_MISMATCH)
+                .at_file(source_path.to_str().unwrap())
+                .message(format!("Type checking failed: {}", e))
+        );
+    }
+    
+    // === 语义分析 ===
+    let mut semantic_analyzer = SemanticAnalyzer::new();
+    semantic_analyzer.set_file(source_path.to_str().unwrap());
+    semantic_analyzer.analyze(&ast, &mut diag_collector);
+    
+    // 输出诊断
+    if diag_collector.has_errors() || diag_collector.has_warnings() {
+        diag_collector.emit();
+        diag_collector.emit_summary();
+    }
+    
+    // 如果有错误，终止编译
+    if diag_collector.has_errors() {
+        std::process::exit(1);
+    }
     
     // 根据后端选择代码生成
     match backend {
@@ -807,5 +839,179 @@ task my_task {
         assert_eq!(graph.inputs.len(), 2);
         assert_eq!(graph.outputs.len(), 1);
         assert_eq!(graph.operations.len(), 1);
+    }
+
+    // ========== 诊断系统测试 ==========
+
+    #[test]
+    fn test_diagnostic_creation() {
+        let diag = diagnostic::Diagnostic::error(diagnostic::error_codes::TYPE_MISMATCH)
+            .at_file("test.hl")
+            .message("Type mismatch: expected i32, found f32");
+
+        assert_eq!(diag.level, diagnostic::DiagnosticLevel::Error);
+        assert_eq!(diag.code, "HSC1001");
+        assert_eq!(diag.file, "test.hl");
+    }
+
+    #[test]
+    fn test_diagnostic_collector() {
+        let mut collector = diagnostic::DiagnosticCollector::new();
+
+        collector.add(
+            diagnostic::Diagnostic::error(diagnostic::error_codes::UNDEFINED_VARIABLE)
+                .at_file("test.hl")
+                .message("Undefined variable: x")
+        );
+        collector.add(
+            diagnostic::Diagnostic::warning(diagnostic::error_codes::UNUSED_VARIABLE)
+                .at_file("test.hl")
+                .message("Unused variable: y")
+        );
+
+        assert!(collector.has_errors());
+        assert!(collector.has_warnings());
+        assert_eq!(collector.error_count(), 1);
+        assert_eq!(collector.warning_count(), 1);
+    }
+
+    // ========== 语义分析测试 ==========
+
+    #[test]
+    fn test_semantic_analyzer_simple_function() {
+        let source = r#"
+fn main() {
+    let x = 42;
+    let y = x + 1;
+}
+"#;
+        let mut lexer = lexer::Lexer::new(source);
+        let tokens = lexer.tokenize();
+        let mut parser = parser::Parser::new(tokens);
+        let ast = parser.parse_program().expect("Parse failed");
+
+        let mut analyzer = semantic::SemanticAnalyzer::new();
+        let mut collector = diagnostic::DiagnosticCollector::new();
+        analyzer.analyze(&ast, &mut collector);
+
+        // 不应该有错误
+        assert!(!collector.has_errors());
+    }
+
+    #[test]
+    fn test_semantic_analyzer_task_dependency() {
+        let source = r#"
+task compute {
+    body(x: Buffer<f32>) -> Buffer<f32> {
+        parallel for i in 0..1024 {
+            let y = i;
+        }
+    }
+}
+
+task process {
+    body(x: Buffer<f32>) -> Buffer<f32> {
+        parallel for i in 0..1024 {
+            let y = i;
+        }
+    }
+}
+
+fn main() {
+    let a = Buffer::<f32>::zeros([1024]);
+    let b = spawn on GPU compute(a).await;
+    let c = spawn on GPU process(b).await;
+}
+"#;
+        let mut lexer = lexer::Lexer::new(source);
+        let tokens = lexer.tokenize();
+        let mut parser = parser::Parser::new(tokens);
+        let ast = parser.parse_program().expect("Parse failed");
+
+        let mut analyzer = semantic::SemanticAnalyzer::new();
+        let mut collector = diagnostic::DiagnosticCollector::new();
+        analyzer.analyze(&ast, &mut collector);
+
+        // 不应该有循环依赖错误
+        assert!(!collector.has_errors());
+    }
+
+    #[test]
+    fn test_semantic_analyzer_with_pattern() {
+        let source = r#"
+task reduce_task {
+    pattern: Reduce,
+    body(arr: Buffer<f32>) -> f32 {
+        parallel for i in 0..1024 {
+            let val = arr[i];
+        }
+        return 0.0;
+    }
+}
+
+fn main() {
+    let arr = Buffer::<f32>::zeros([1024]);
+    let result = spawn on GPU reduce_task(arr).await;
+}
+"#;
+        let mut lexer = lexer::Lexer::new(source);
+        let tokens = lexer.tokenize();
+        let mut parser = parser::Parser::new(tokens);
+        let ast = parser.parse_program().expect("Parse failed");
+
+        let mut analyzer = semantic::SemanticAnalyzer::new();
+        let mut collector = diagnostic::DiagnosticCollector::new();
+        analyzer.analyze(&ast, &mut collector);
+
+        // 应该正常分析
+        assert!(!collector.has_errors());
+    }
+
+    #[test]
+    fn test_task_dependency_graph() {
+        let mut graph = semantic::TaskDependencyGraph::new();
+        
+        graph.add_task("A");
+        graph.add_task("B");
+        graph.add_task("C");
+        graph.add_dependency("A", "B", "data");
+        graph.add_dependency("B", "C", "data");
+
+        // 无循环
+        assert!(graph.detect_cycles().is_none());
+        
+        // 拓扑排序应该成功
+        assert!(graph.topological_sort().is_some());
+    }
+
+    #[test]
+    fn test_task_dependency_graph_with_cycle() {
+        let mut graph = semantic::TaskDependencyGraph::new();
+        
+        graph.add_task("A");
+        graph.add_task("B");
+        graph.add_task("C");
+        graph.add_dependency("A", "B", "data");
+        graph.add_dependency("B", "C", "data");
+        graph.add_dependency("C", "A", "data");
+
+        // 应该检测到循环
+        assert!(graph.detect_cycles().is_some());
+        
+        // 拓扑排序应该失败
+        assert!(graph.topological_sort().is_none());
+    }
+
+    #[test]
+    fn test_device_info() {
+        let info = semantic::DeviceInfo::new();
+        
+        assert!(info.is_device_available("GPU"));
+        assert!(info.is_device_available("CPU"));
+        assert!(info.is_device_available("Host"));
+        
+        let gpu_cap = info.get_capability("GPU").unwrap();
+        assert!(gpu_cap.supports_fp16);
+        assert!(gpu_cap.supports_int8);
     }
 }
