@@ -25,12 +25,18 @@ use std::fs;
 use std::path::Path;
 use diagnostic::DiagnosticCollector;
 use semantic::SemanticAnalyzer;
+use performance::{PerformanceAnalyzer, PerformanceReportGenerator, ReportFormat};
+use hscir::pass::{PassManager, PassContext, DataFlowAnalysisPass, DependenceAnalysisPass, DeviceAffinityAnalysisPass, VerificationPass};
 
 #[cfg(not(test))]
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
+    
+    // 解析命令行选项
+    let cli_options = config::CliOptions::parse_args(&args);
+    
     if args.len() < 2 {
-        eprintln!("Usage: hscc <project-directory> [--backend=<cuda|triton>]");
+        print_usage();
         std::process::exit(1);
     }
     
@@ -78,10 +84,120 @@ fn main() -> Result<()> {
         );
     }
     
-    // === 语义分析 ===
-    let mut semantic_analyzer = SemanticAnalyzer::new();
-    semantic_analyzer.set_file(source_path.to_str().unwrap());
-    semantic_analyzer.analyze(&ast, &mut diag_collector);
+    // === 静态分析 ===
+    let mut merged_options = cli_options.clone();
+    merged_options.merge_with_config(&config);
+    
+    if merged_options.analyze_static {
+        println!("\n=== Running Static Analysis ===");
+        
+        let target = config.target.device.as_str();
+        
+        let mut semantic_analyzer = SemanticAnalyzer::new();
+        semantic_analyzer.set_file(source_path.to_str().unwrap());
+        semantic_analyzer.analyze(&ast, &mut diag_collector);
+        
+        // 运行数据流分析
+        let mut df_analyzer = dataflow::DataFlowAnalyzer::new();
+        df_analyzer.analyze_program(&ast);
+        
+        // 运行 Pattern/Policy 检查
+        let mut pp_checker = analysis::PatternPolicyChecker::new();
+        pp_checker.analyze(&ast, &mut diag_collector);
+        
+        // 运行目标特定检查
+        let mut target_checker = target_check::TargetChecker::from_str(target);
+        target_checker.check_program(&ast, &mut diag_collector);
+    }
+    
+    // === 性能分析 ===
+    if merged_options.analyze_performance {
+        println!("\n=== Running Performance Analysis ===");
+        
+        let mut perf_analyzer = PerformanceAnalyzer::new();
+        perf_analyzer.analyze(&ast);
+        
+        // 生成诊断信息
+        perf_analyzer.generate_diagnostics(&mut diag_collector);
+        
+        // 获取分析结果并生成报告
+        let profile = perf_analyzer.get_result();
+        
+        // 输出报告
+        let report_format = determine_report_format(&merged_options);
+        let generator = PerformanceReportGenerator::new(report_format);
+        let report = generator.generate(profile);
+        
+        if merged_options.verbose {
+            println!("\n{}", report);
+        }
+        
+        // 输出到文件
+        if let Some(ref output_dir) = merged_options.output_dir {
+            let report_path = Path::new(output_dir).join(format!("{}_performance_report.{}", 
+                config.package.name, 
+                format_extension(&report_format)
+            ));
+            if let Err(e) = fs::write(&report_path, &report) {
+                eprintln!("Warning: Failed to write performance report: {}", e);
+            } else {
+                println!("Performance report written to: {}", report_path.display());
+            }
+        }
+    }
+    
+    // === IR 分析 ===
+    if merged_options.analyze_ir {
+        println!("\n=== Running IR Analysis ===");
+        
+        // 创建 Pass 管理器
+        let mut pass_manager = PassManager::new();
+        let mut pass_ctx = PassContext::new(config.package.name.clone());
+        
+        // 添加默认的分析 Pass
+        if merged_options.ir_passes.is_empty() {
+            pass_manager.add_pass(Box::new(DataFlowAnalysisPass::new()));
+            pass_manager.add_pass(Box::new(DependenceAnalysisPass::new()));
+            pass_manager.add_pass(Box::new(DeviceAffinityAnalysisPass::new()));
+            pass_manager.add_pass(Box::new(VerificationPass::new()));
+        } else {
+            // 根据指定的 Pass 列表添加
+            for pass_name in &merged_options.ir_passes {
+                match pass_name.as_str() {
+                    "dataflow" => pass_manager.add_pass(Box::new(DataFlowAnalysisPass::new())),
+                    "dependence" => pass_manager.add_pass(Box::new(DependenceAnalysisPass::new())),
+                    "device-affinity" => pass_manager.add_pass(Box::new(DeviceAffinityAnalysisPass::new())),
+                    "verification" => pass_manager.add_pass(Box::new(VerificationPass::new())),
+                    _ => {
+                        eprintln!("Warning: Unknown IR pass '{}', skipping", pass_name);
+                    }
+                }
+            }
+        }
+        
+        // 初始化并运行 Pass
+        if let Err(e) = pass_manager.initialize() {
+            eprintln!("Error initializing pass manager: {}", e);
+        } else if let Err(e) = pass_manager.run(&mut pass_ctx) {
+            eprintln!("Error running IR passes: {}", e);
+        } else {
+            println!("IR analysis completed successfully");
+            
+            // 输出统计信息
+            if merged_options.verbose {
+                println!("\nPass Statistics:");
+                for (name, stats) in pass_manager.get_statistics() {
+                    println!("  {}: {} executions, avg {:.2}us",
+                        name, stats.execution_count, stats.average_time_us() as f64);
+                }
+            }
+            
+            // 输出诊断信息
+            for diag in pass_ctx.get_diagnostics() {
+                println!("  [{}] {}", diag.pass_name, diag.message);
+            }
+        }
+    }
     
     // 输出诊断
     if diag_collector.has_errors() || diag_collector.has_warnings() {
@@ -92,6 +208,12 @@ fn main() -> Result<()> {
     // 如果有错误，终止编译
     if diag_collector.has_errors() {
         std::process::exit(1);
+    }
+    
+    // 仅分析模式，跳过代码生成
+    if merged_options.analyze_only {
+        println!("\nAnalysis complete. Skipping code generation.");
+        return Ok(());
     }
     
     // 根据后端选择代码生成
@@ -213,6 +335,82 @@ fn main() -> Result<()> {
     }
     
     Ok(())
+}
+
+// ============================================================================
+// 辅助函数
+// ============================================================================
+
+/// 打印使用帮助
+fn print_usage() {
+    println!(r#"HSCLang Compiler (hscc)
+
+Usage: hscc <project-directory> [options]
+
+Options:
+  --backend=<cuda|triton|hip|npu>  Specify compilation backend
+  --analyze-performance, -p        Run performance analysis
+  --analyze-static, -s             Run static analysis
+  --analyze-ir                     Run IR-level analysis
+  --analyze, -a                    Run all analyses (performance + static + IR)
+  --analyze-only                   Run analysis only, skip code generation
+  --report-format=<format>         Report format: text, json, html, markdown
+  --output-dir=<dir>               Output directory for reports
+  --ir-passes=<passes>             IR passes to run (comma-separated)
+  --verbose, -v                    Enable verbose output
+
+IR Passes:
+  dataflow         - Data flow analysis
+  dependence       - Dependence analysis
+  device-affinity  - Device affinity analysis
+  verification     - IR verification
+
+Examples:
+  hscc myproject --analyze                    # Run all analyses
+  hscc myproject --analyze-performance        # Performance analysis only
+  hscc myproject -p --report-format=markdown # Performance report in markdown
+  hscc myproject --analyze-ir                 # IR analysis only
+  hscc myproject --ir-passes=dataflow,verification  # Specific IR passes
+  hscc myproject --analyze-only               # Analysis without compilation
+  hscc myproject --backend=triton             # Use Triton backend
+
+Configuration (HSCC.toml):
+  [analysis.performance]
+  enabled = true
+  estimate_time = true
+  identify_bottlenecks = true
+  generate_recommendations = true
+  bottleneck_threshold = 0.5
+  
+  [analysis.static_analysis]
+  enabled = true
+  check_loop_independence = true
+  check_task_graph_cycles = true
+  
+  [analysis.report]
+  format = "markdown"
+  output_dir = "reports"
+"#);
+}
+
+/// 确定报告格式
+fn determine_report_format(options: &config::CliOptions) -> ReportFormat {
+    match options.report_format.as_deref() {
+        Some("json") => ReportFormat::Json,
+        Some("html") => ReportFormat::Html,
+        Some("markdown" | "md") => ReportFormat::Markdown,
+        _ => ReportFormat::Text,
+    }
+}
+
+/// 获取报告文件扩展名
+fn format_extension(format: &ReportFormat) -> &'static str {
+    match format {
+        ReportFormat::Json => "json",
+        ReportFormat::Html => "html",
+        ReportFormat::Markdown => "md",
+        ReportFormat::Text => "txt",
+    }
 }
 
 #[cfg(test)]

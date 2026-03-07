@@ -588,6 +588,46 @@ impl PatternPolicyChecker {
             _ => String::new(),
         }
     }
+    
+    /// 分析整个程序
+    pub fn analyze(&mut self, program: &Program, collector: &mut DiagnosticCollector) {
+        // 分析所有任务
+        for task in &program.tasks {
+            if let Some(pattern) = &task.pattern {
+                self.check_pattern(pattern, collector);
+            }
+            if let Some(policy) = &task.policy {
+                self.check_policy(policy, collector);
+            }
+        }
+        
+        // 分析所有函数
+        for func in &program.functions {
+            // 函数通常没有 pattern/policy，但可以检查内部的任务调用
+            self.analyze_block(&func.body, collector);
+        }
+    }
+    
+    /// 分析代码块
+    fn analyze_block(&self, block: &Block, collector: &mut DiagnosticCollector) {
+        for stmt in &block.statements {
+            match stmt {
+                Statement::ParallelFor { body, .. } | Statement::For { body, .. } => {
+                    self.analyze_block(body, collector);
+                }
+                Statement::If { then_branch, else_branch, .. } => {
+                    self.analyze_block(then_branch, collector);
+                    if let Some(else_b) = else_branch {
+                        self.analyze_block(else_b, collector);
+                    }
+                }
+                Statement::While { body, .. } | Statement::Loop(body) => {
+                    self.analyze_block(body, collector);
+                }
+                _ => {}
+            }
+        }
+    }
 }
 
 impl Default for PatternPolicyChecker {

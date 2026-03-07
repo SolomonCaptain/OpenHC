@@ -617,6 +617,40 @@ impl TargetChecker {
         };
         Self::new(device)
     }
+    
+    /// 检查整个程序
+    pub fn check_program(&mut self, program: &Program, collector: &mut DiagnosticCollector) {
+        // 检查所有任务
+        for task in &program.tasks {
+            self.check_task(task, collector);
+        }
+        
+        // 检查所有函数
+        for func in &program.functions {
+            self.check_block(&func.body, collector);
+        }
+    }
+    
+    /// 检查代码块
+    fn check_block(&self, block: &Block, collector: &mut DiagnosticCollector) {
+        for stmt in &block.statements {
+            match stmt {
+                Statement::ParallelFor { body, .. } | Statement::For { body, .. } => {
+                    self.check_block(body, collector);
+                }
+                Statement::If { then_branch, else_branch, .. } => {
+                    self.check_block(then_branch, collector);
+                    if let Some(else_b) = else_branch {
+                        self.check_block(else_b, collector);
+                    }
+                }
+                Statement::While { body, .. } | Statement::Loop(body) => {
+                    self.check_block(body, collector);
+                }
+                _ => {}
+            }
+        }
+    }
 }
 
 // ============================================================================
