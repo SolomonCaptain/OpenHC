@@ -1,0 +1,54 @@
+[plugin]
+name = "photonics.fdtd"
+version = "0.1.0"
+description = "FDTD (Finite-Difference Time-Domain) solver for photonics simulation"
+author = "OpenHC Team"
+license = "Apache-2.0"
+homepage = "https://github.com/SolomonCaptain/OpenHC"
+category = "solver"
+capabilities = [
+    "gpu_acceleration",
+    "multithreaded",
+    "streaming",
+    "configurable"
+]
+
+[[dependencies]]
+name = "photonics.core"
+version = ">=0.1.0"
+
+[[dependencies]]
+name = "material.library"
+version = ">=0.1.0"
+optional = true
+
+[abi]
+init_func = "fdtd_init"
+execute_func = "fdtd_execute"
+cleanup_func = "fdtd_cleanup"
+min_api_version = 10000
+
+[resources]
+gpu_memory_mb = 2048
+system_memory_mb = 512
+max_threads = 16
+compute_units = 1
+
+[extensions]
+operations = [
+    "photonics.fdtd.update_e",
+    "photonics.fdtd.update_h",
+    "photonics.fdtd.apply_source",
+    "photonics.fdtd.apply_boundary",
+    "photonics.fdtd.record_monitor",
+    "photonics.fdtd.run",
+    "photonics.fdtd.step"
+]
+types = [
+    "photonics.fdtd.config",
+    "photonics.fdtd.state"
+]
+
+[extensions.config_schema]
+type = "object"
+properties = { domain = { "$ref": "#/definitions/Domain" }, materials = { "type" = "array" }, sources = { "type" = "array" } }

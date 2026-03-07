@@ -30,6 +30,22 @@ OpenHC/
 └── docs/           # 文档
 ```
 
+## 当前状态
+
+| 组件 | 成熟度 | 功能状态 | 备注 |
+|------|--------|----------|------|
+| **HSCC 编译器** | 🟢 可用 | 完整的词法/语法/语义分析，CUDA/HIP/Triton/NPU 后端代码生成 | 支持静态分析、性能分析、IR 分析 |
+| **HSCIR 中间表示** | 🟡 开发中 | 类型系统、操作定义、Builder API 完成，IR 分析框架就绪 | 与编译器前端集成进行中 |
+| **HSCLang 语言设计** | 🟢 稳定 | 语法规范完整，示例项目可用，语言文档详尽 | 设计理念和语法元素已固化 |
+| **HSCMake 构建系统** | 🟢 可用 | 支持 C++/Rust/TypeScript 多语言构建，命令行工具完整 | 与 OpenHC 项目自身构建集成 |
+| **HSCIDE 集成开发环境** | 🟡 开发中 | 渲染管线 (gRPC + Vulkan) 实现完整，IDE 前端骨架就绪 | 可视化仿真结果流式传输 |
+| **HSCPlugins 插件系统** | 🟡 开发中 | 插件 API 和管理器框架就绪，示例插件（光子学 FDTD）模板 | 支持领域特定扩展 |
+| **FPGA 后端** | ⚪ 规划中 | 设计文档完成，Vitis HLS 代码生成方案制定 | 优先级低于 NPU/GPU |
+| **NPU 后端** | 🟢 可用 | Intel NPU (OpenVINO) 支持，ONNX 模型生成，运行时集成 | 支持 Meteor Lake NPU 推理加速 |
+| **Triton 后端** | 🟢 可用 | Python Triton 代码生成，设备无关 GPU 编程 | 适合快速原型和跨平台 GPU 代码 |
+
+**成熟度说明**: 🟢 可用 (生产就绪) | 🟡 开发中 (功能基本完成) | ⚪ 规划中 (设计阶段)
+
 ---
 
 ## 子项目详解
@@ -58,22 +74,52 @@ HSCLang源文件 (.hl)
        ↓
   HSCIR 中间表示 (lower.rs)
        ↓
-  代码生成器 (codegen.rs)
+  设备无关优化与静态分析
        ↓
-  CUDA 代码 (.cu)
+  ┌─────────────────────────────────────────────────────┐
+  │                                                     │
+  ▼                                                     ▼
+GPU后端 (CUDA/HIP)                               NPU后端 (Intel NPU/OpenVINO)
+       ↓                                                     ↓
+CUDA/HIP C++ 代码 (.cu)                              ONNX/OpenVINO IR
+       ↓                                                     ↓
+nvcc/hipcc 编译                                      Python 运行时代码
+       ↓                                                     ↓
+  可执行文件                                          执行脚本
+  │                                                     │
+  └─────────────────────────────────────────────────────┘
        ↓
-  可执行文件
+  Triton后端 (可选)
+       ↓
+  Python Triton 代码
+       ↓
+  直接执行
 ```
 
+**支持的后端**:
+- **CUDA/HIP**: 生成 CUDA C++ 代码并调用 nvcc/hipcc 编译，支持 NVIDIA 和 AMD GPU
+- **Triton**: 生成 Python Triton 代码，支持设备无关的 GPU 编程
+- **NPU**: 生成 ONNX 模型和 OpenVINO IR，支持 Intel NPU (Meteor Lake) 推理加速
+- **FPGA**: *规划中*（基于 Vitis HLS）
+
 **核心模块**:
-- `lexer.rs` - 词法分析器，定义 `TokenKind` 枚举（关键字、符号、字面量等）
-- `parser.rs` - 语法分析器，解析 `import`、`fn`、`task` 等声明
-- `ast.rs` - AST 节点定义，包括 `Program`、`Function`、`Task`、`Pattern`、`Policy` 等
+- `lexer.rs` - 词法分析器，定义 `TokenKind` 枚举（异构专用关键字、符号、字面量等）
+- `parser.rs` - 语法分析器，解析 `import`、`fn`、`task`、`pipeline`、`graph` 等声明
+- `ast.rs` - AST 节点定义，包括 `Program`、`Function`、`Task`、`Pattern`、`Policy`、`Buffer` 等
 - `typeck.rs` - 类型检查器，实现类型推断、兼容性检查、错误报告
 - `lower.rs` - AST 到 HSCIR 转换，实现程序、任务、控制流转换
-- `codegen.rs` - 代码生成器，将 AST 转换为目标代码
-- `compile.rs` - 编译驱动，调用 NVCC 编译 CUDA 代码
+- `codegen.rs` - CUDA/HIP 代码生成器，将 AST 转换为 GPU 代码
+- `compile.rs` - 编译驱动，调用 nvcc/hipcc 编译 CUDA/HIP 代码
 - `config.rs` - 配置文件解析（HSCC.toml）
+- `analysis.rs` - 静态分析，包括模式-策略检查
+- `dataflow.rs` - 数据流分析
+- `semantic.rs` - 语义分析
+- `performance.rs` - 性能分析
+- `target_check.rs` - 目标设备特定检查
+- `diagnostic.rs` - 诊断信息收集与报告
+- `triton/` - Triton 后端，生成 Python Triton 代码
+- `npu/` - NPU 后端，生成 ONNX/OpenVINO IR 和运行时代码
+- `hscir/` - HSCIR 中间表示模块，包含 Pass 管理器和分析工具
 
 **构建命令**:
 ```bash
@@ -89,13 +135,23 @@ hscc <project-directory>
 **配置文件格式** (`HSCC.toml`):
 ```toml
 [package]
-name = "project_name"
-version = "0.1.0"
-edition = "2026"
+name = "project_name"       # 项目名称
+version = "0.1.0"           # 版本号
+edition = "2026"            # 语言版本
 
 [target]
-device = "cuda"
-arch = "sm_61"
+device = "cuda"             # 目标设备: cuda, hip, triton, npu
+arch = "sm_61"              # 设备架构: sm_61 (CUDA), gfx90a (HIP), intel_meteorlake (NPU)
+
+[backend]                   # 可选后端配置
+kind = "cuda"               # 后端类型: cuda, hip, triton, npu
+optimization_level = 2      # 优化级别 (0-3)
+debug = false               # 调试模式
+
+[analysis]                  # 分析配置
+static = true               # 启用静态分析
+performance = true          # 启用性能分析
+ir = false                  # 启用 IR 分析
 ```
 
 ---
@@ -351,45 +407,94 @@ hscmake configure --build-dir=test/build test/HSCMakeList.txt
 
 ## 未来路线图
 
-### FPGA 支持 (TODO.FPGA.md)
+### 短期目标 (2026 Q2)
 
-借鉴 Vitis HLS 策略：
-- `task` 映射为 HLS 顶层模块
-- `parallel for` 生成流水线或展开的硬件
-- `Buffer` 映射为 BRAM 或 AXI 接口
-- 生成带 `#pragma HLS` 的 C++ 代码
+1. **HSCIR 与编译器集成**
+   - 完成 AST 到 HSCIR 的完整转换管道
+   - 实现基于 HSCIR 的设备无关优化 Pass
+   - 建立 HSCIR 到各后端（CUDA/NPU/Triton）的代码生成
 
-### GPU 优化 (TODO.GPU.md)
+2. **运行时调度器开发**
+   - 实现设备探测与特征建模 (`probe_devices()`)
+   - 构建基于任务特征的设备选择器 (`select_device()`)
+   - 开发跨设备数据迁移优化器
 
-借鉴 vLLM 策略：
-- 引入高性能计算库（cuBLAS、rocBLAS）
-- 支持低精度计算（FP16、BF16）
-- 实现算子融合和 CUDA Graph
-- 使用 Triton DSL 支持跨平台
+3. **NPU 后端完善**
+   - 支持更多 NPU 架构（华为昇腾、Google TPU）
+   - 优化 ONNX 模型生成和推理性能
+   - 实现 NPU 特定优化（算子融合、内存布局优化）
 
-### MLIR 集成 (TODO.MLIR.md)
+### 中期目标 (2026 Q3-Q4)
 
-构建分层 IR 体系：
-- 定义高层方言 `hsc`（`hsc.task`、`hsc.parallel_for`、`hsc.buffer`）
-- 渐进式降低到通用方言（`scf`、`linalg`、`memref`）
-- 目标特化（GPU → `nvvm`/`rocdl`，FPGA → `hls`，NPU → 自定义方言）
+1. **FPGA 后端实现**
+   - 基于 Vitis HLS 的代码生成器
+   - `task` 到 HLS 顶层模块的映射
+   - `Buffer` 到 BRAM/AXI 接口的转换
+   - 流水线并行模式的硬件优化
+
+2. **高级语言特性**
+   - 内容寻址任务标识（借鉴 Unison）
+   - 编译期元编程（模板展开、目标特化）
+   - 递归任务与动态图调整
+
+3. **性能优化**
+   - 引入 cuBLAS/rocBLAS 等高性能库
+   - 支持低精度计算（FP16、BF16、INT8）
+   - 实现算子融合和 CUDA Graph 优化
+
+### 长期愿景 (2027+)
+
+1. **MLIR 集成**
+   - 定义 `hsc` 方言（`hsc.task`、`hsc.parallel_for`、`hsc.buffer`）
+   - 渐进式降低到通用方言（`scf`、`linalg`、`memref`）
+   - 利用 MLIR 多后端基础设施
+
+2. **分布式异构计算**
+   - 跨节点任务调度与数据迁移
+   - 统一内存空间（CXL 2.0+ 支持）
+   - 容错与任务恢复机制
+
+3. **生态建设**
+   - 光子学仿真、CFD、AI 训练等领域专用库
+   - 第三方插件市场
+   - 工业界采用与社区贡献
 
 ---
 
 ## 注意事项
 
-- 此项目为**学习项目**，可能存在较多 BUG
-- 项目处于活跃开发状态，API 可能随时变化
-- 支持 Windows 平台开发
-- HSCC 编译器已有完整的单元测试、集成测试和端到端测试覆盖
+- 此项目为**学习项目**，可能存在较多 BUG 和未完善功能
+- 项目处于活跃开发状态，API 可能随时变化，请参考最新代码
+- 主要支持 Windows 平台开发，Linux/macOS 平台可能需要进行适配
+- HSCC 编译器已实现核心编译流水线，包含词法/语法/语义分析，支持 CUDA/HIP/Triton/NPU 后端代码生成
+- 测试覆盖包括单元测试和集成测试，端到端测试正在完善中
+- 文档可能与实际实现存在滞后，建议结合代码阅读
 
 ---
 
 ## 相关文档
 
-- 项目上下文: `docs/AGENTS.md`
+### 核心文档
+- 项目总览: `README.md` (本文档)
 - 语言设计规范: `HSCLang/README.md`
+- 语言详解: `HSCLang/README_EXPLAIN.md`
+- 编译器文档: `HSCC/README.md`
+- 中间表示文档: `HSCIR/README.md`
+- 构建系统文档: `HSCMake/README.md`
+- IDE 与渲染管线文档: `HSCIDE/README.md`
+- 插件开发指南: `HSCPlugins/README.md`
+
+### 设计文档
+- 光子学仿真模块设计: `docs/光子学仿真模块设计.md`
+- 代码分析与优化设计: `docs/代码分析与优化.md`
+- DeepWiki 深度分析: `docs/DeepWiki/2026-03-05.md`
+
+### 开发计划
 - FPGA 开发计划: `docs/TODO.FPGA.md`
-- GPU 开发计划: `docs/TODO.GPU.md`
+- NPU 开发计划: `docs/TODO.NPU.md`
 - MLIR 集成计划: `docs/TODO.MLIR.md`
-- 开发路线图: `docs/TODO.md`
+- 总体开发路线图: `docs/TODO.md`
+
+### 其他
+- 开发者指南: `docs/DEVELOPER_GUIDE.md` (待更新)
+- 项目上下文: `docs/AGENTS.md` (与 README 内容相似，可参考)

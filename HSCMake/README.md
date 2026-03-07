@@ -6,7 +6,7 @@
 
 ## 概述
 
-HSCMake 是 OpenHC 项目的构建系统，提供统一的构建接口，支持多语言、多目标的项目构建。
+HSCMake 是 OpenHC 项目的构建系统，提供统一的构建接口，支持多语言、多目标的项目构建。目前支持 C++、Rust、TypeScript 等语言，并可通过扩展支持 HSCLang 项目的构建（通过调用 HSCC 编译器）。HSCMake 本身也是 OpenHC 多语言工程（Rust 编译器 + C++ IR + Python 工具 + Go 服务）的统一构建入口。
 
 ## 技术栈
 
@@ -123,6 +123,14 @@ rust_target(
 ts_target(
     name="frontend",
     srcs=["src/index.ts"]
+)
+
+# HSCLang 目标（通过调用 HSCC 编译器）
+hsc_target(
+    name="simulation",
+    srcs=["src/main.hl"],
+    backend="cuda",      # 可选: cuda, hip, triton, npu
+    arch="sm_61"
 )
 ```
 
