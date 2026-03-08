@@ -1,0 +1,50 @@
+// CPU 后端演示程序
+// 计算向量加法和点积
+
+import std.io;
+
+// 向量加法任务
+task vector_add(a: Buffer<F32>, b: Buffer<F32>, c: Buffer<F32>, n: I32) {
+    parallel_for i in 0..n {
+        c[i] = a[i] + b[i];
+    }
+}
+
+// 点积任务
+task dot_product(a: Buffer<F32>, b: Buffer<F32>, n: I32) -> F32 {
+    let sum: F32 = 0.0;
+    parallel_for i in 0..n {
+        sum = sum + a[i] * b[i];
+    }
+    return sum;
+}
+
+// 主函数
+fn main() {
+    let n: I32 = 1000;
+    
+    // 创建缓冲区
+    let a: Buffer<F32> = Buffer::zeros(n);
+    let b: Buffer<F32> = Buffer::zeros(n);
+    let c: Buffer<F32> = Buffer::zeros(n);
+    
+    // 初始化数据
+    parallel_for i in 0..n {
+        a[i] = i as F32;
+        b[i] = (i * 2) as F32;
+    }
+    
+    // 执行向量加法
+    vector_add(a, b, c, n);
+    
+    // 计算点积
+    let result: F32 = dot_product(a, b, n);
+    
+    // 输出结果
+    print("Vector addition result (first 5 elements):");
+    for i in 0..5 {
+        print("c[{}] = {}", i, c[i]);
+    }
+    
+    print("Dot product result: {}", result);
+}

@@ -377,7 +377,7 @@ typedef struct HscPluginEntry {
 #endif
 
 #define HSC_EXPORT_PLUGIN(get_info_fn, init_fn, create_fn, exec_fn, destroy_fn, config_fn, query_fn, shutdown_fn) \
-    extern "C" HSC_EXPORT const HscPluginEntry HSC_PLUGIN_ENTRY = { \
+    HSC_EXPORT const HscPluginEntry HSC_PLUGIN_ENTRY = { \
         .get_info = get_info_fn, \
         .initialize = init_fn, \
         .create_instance = create_fn, \

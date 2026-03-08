@@ -11,6 +11,24 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <stdio.h>
+
+/* ============================================================================
+ * Platform Compatibility Macros
+ * ============================================================================ */
+
+#if defined(_WIN32) || defined(_WIN64)
+    #include <malloc.h>
+    #define aligned_alloc(alignment, size) _aligned_malloc(size, alignment)
+    #define aligned_free(ptr) _aligned_free(ptr)
+#elif defined(__APPLE__)
+    #include <malloc/malloc.h>
+    #define aligned_free(ptr) free(ptr)
+#else
+    #define _GNU_SOURCE
+    #include <stdlib.h>
+    #define aligned_free(ptr) free(ptr)
+#endif
 
 /* ============================================================================
  * Plugin Metadata
@@ -85,7 +103,7 @@ static void fdtd_free(FDTDState* state, void* ptr) {
         state->host->dealloc(NULL, ptr);
         return;
     }
-    free(ptr);
+    aligned_free(ptr);
 }
 
 static void fdtd_log(FDTDState* state, int level, const char* message) {

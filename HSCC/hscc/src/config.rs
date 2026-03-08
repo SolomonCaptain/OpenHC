@@ -13,6 +13,8 @@ pub enum Backend {
     Hip,
     /// NPU 后端
     Npu,
+    /// CPU 后端 (多线程 C++)
+    Cpu,
 }
 
 impl Default for Backend {
@@ -29,6 +31,7 @@ impl Backend {
             "triton" => Backend::Triton,
             "hip" | "rocm" | "amd" => Backend::Hip,
             "npu" | "intel_npu" | "openvino" => Backend::Npu,
+            "cpu" | "host" => Backend::Cpu,
             _ => Backend::Cuda,
         }
     }
@@ -40,6 +43,7 @@ impl Backend {
             Backend::Triton => "triton",
             Backend::Hip => "hip",
             Backend::Npu => "npu",
+            Backend::Cpu => "cpu",
         }
     }
 }

@@ -8,10 +8,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(hscir SHARED
     src/Types.cpp
-        src/Operations.cpp
-        src/Builder.cpp
-        src/CAPI.cpp
-        src/Module.cpp
+    src/Operations.cpp
+    src/Builder.cpp
+    src/CAPI.cpp
+    src/Module.cpp
+    src/Verifier.cpp
 )
 
 target_include_directories(hscir PUBLIC

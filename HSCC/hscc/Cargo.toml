@@ -13,6 +13,8 @@ anyhow = "1.0.101"
 protobuf = "3.7"
 # 可选：使用 tract-onnx 进行 ONNX 解析/生成
 tract-onnx = { version = "0.21", optional = true }
+# CPU 核心数检测
+num_cpus = "1.16"
 
 [features]
 default = []

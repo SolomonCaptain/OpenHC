@@ -160,6 +160,7 @@ namespace hscir
             void setAttribute(const std::string& key, std::unique_ptr<Attribute> attr);
             Attribute* getAttribute(const std::string& key) const;
             bool hasAttribute(const std::string& key) const;
+            const std::unordered_map<std::string, std::unique_ptr<Attribute>>& getAttributes() const { return attributes_; }
 
             // 区域
             void addRegion(std::unique_ptr<Region> region);

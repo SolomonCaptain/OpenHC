@@ -18,6 +18,7 @@ mod hscir;
 mod lower;
 mod triton;
 mod npu;
+mod cpu;
 
 use anyhow::Result;
 use std::env;
@@ -332,6 +333,29 @@ fn main() -> Result<()> {
             println!("Run with: python {}_runtime.py --model {}.onnx", 
                 config.package.name, config.package.name);
         }
+        config::Backend::Cpu => {
+            // 生成 CPU C++ 代码
+            let cpu_code = cpu::generate_cpu_code(&ast);
+            
+            // 写入 C++ 文件
+            let cpp_file = Path::new(project_dir).join(format!("{}.cpp", config.package.name));
+            fs::write(&cpp_file, &cpu_code)?;
+            
+            println!("Generated CPU C++ code: {}", cpp_file.display());
+            
+            // 尝试编译
+            let exe_file = Path::new(project_dir).join(&config.package.name);
+            match compile::compile_cpp_host(cpp_file.to_str().unwrap(), exe_file.to_str().unwrap()) {
+                Ok(_) => {
+                    println!("Compilation successful! Executable: {}", exe_file.display());
+                }
+                Err(e) => {
+                    println!("Warning: Failed to compile C++ code: {}", e);
+                    println!("You can manually compile with: g++ -fopenmp -O2 {} -o {}", 
+                        cpp_file.display(), exe_file.display());
+                }
+            }
+        }
     }
     
     Ok(())
@@ -348,7 +372,7 @@ fn print_usage() {
 Usage: hscc <project-directory> [options]
 
 Options:
-  --backend=<cuda|triton|hip|npu>  Specify compilation backend
+  --backend=<cuda|triton|hip|npu|cpu>  Specify compilation backend
   --analyze-performance, -p        Run performance analysis
   --analyze-static, -s             Run static analysis
   --analyze-ir                     Run IR-level analysis
@@ -358,6 +382,13 @@ Options:
   --output-dir=<dir>               Output directory for reports
   --ir-passes=<passes>             IR passes to run (comma-separated)
   --verbose, -v                    Enable verbose output
+
+Backends:
+  cuda    - NVIDIA GPU (generates CUDA C++, requires nvcc)
+  hip     - AMD GPU (generates HIP C++, requires hipcc)
+  triton  - GPU-agnostic (generates Python Triton code)
+  npu     - Intel NPU (generates ONNX/OpenVINO IR)
+  cpu     - CPU host (generates C++ with OpenMP support)
 
 IR Passes:
   dataflow         - Data flow analysis
@@ -373,6 +404,7 @@ Examples:
   hscc myproject --ir-passes=dataflow,verification  # Specific IR passes
   hscc myproject --analyze-only               # Analysis without compilation
   hscc myproject --backend=triton             # Use Triton backend
+  hscc myproject --backend=cpu                # Use CPU backend with OpenMP
 
 Configuration (HSCC.toml):
   [analysis.performance]
@@ -1212,5 +1244,134 @@ fn main() {
         let gpu_cap = info.get_capability("GPU").unwrap();
         assert!(gpu_cap.supports_fp16);
         assert!(gpu_cap.supports_int8);
+    }
+
+    // ========== CPU 后端测试 ==========
+
+    #[test]
+    fn test_cpu_backend_simple_function() {
+        let source = r#"
+fn main() {
+    let x = 42;
+}
+"#;
+        
+        let mut lexer = lexer::Lexer::new(source);
+        let tokens = lexer.tokenize();
+        let mut parser = parser::Parser::new(tokens);
+        let ast = parser.parse_program().expect("Parser failed");
+        
+        // 生成 CPU 代码
+        let cpu_code = cpu::generate_cpu_code(&ast);
+        
+        // 验证生成的代码
+        assert!(cpu_code.contains("#include <stdio.h>"));
+        assert!(cpu_code.contains("#include <omp.h>"));
+        assert!(cpu_code.contains("int main"));
+    }
+
+    #[test]
+    fn test_cpu_backend_with_task() {
+        let source = r#"
+task compute {
+    body(a: Buffer<f32>, b: Buffer<f32>) -> Buffer<f32> {
+        parallel for i in 0..1024 {
+            let sum = a[i] + b[i];
+        }
+    }
+}
+
+fn main() {
+    let a = Buffer::<f32>::zeros([1024]);
+    let b = Buffer::<f32>::zeros([1024]);
+    let result = spawn on CPU compute(a, b).await;
+}
+"#;
+        
+        let mut lexer = lexer::Lexer::new(source);
+        let tokens = lexer.tokenize();
+        let mut parser = parser::Parser::new(tokens);
+        let ast = parser.parse_program().expect("Parser failed");
+        
+        // 生成 CPU 代码
+        let cpu_code = cpu::generate_cpu_code(&ast);
+        
+        // 验证生成的代码
+        assert!(cpu_code.contains("void compute"));
+        assert!(cpu_code.contains("#pragma omp parallel for"));
+        assert!(cpu_code.contains("template<typename T>"));
+        assert!(cpu_code.contains("class Buffer"));
+    }
+
+    #[test]
+    fn test_cpu_backend_with_loop() {
+        let source = r#"
+fn sum_array(arr: Buffer<f32>, n: i32) -> f32 {
+    let total = 0.0;
+    for i in 0..n {
+        let total = total + arr[i];
+    }
+    return total;
+}
+"#;
+        
+        let mut lexer = lexer::Lexer::new(source);
+        let tokens = lexer.tokenize();
+        let mut parser = parser::Parser::new(tokens);
+        let ast = parser.parse_program().expect("Parser failed");
+        
+        // 生成 CPU 代码
+        let cpu_code = cpu::generate_cpu_code(&ast);
+        
+        // 验证生成的代码
+        assert!(cpu_code.contains("float sum_array"));
+        assert!(cpu_code.contains("for (int i"));
+    }
+
+    #[test]
+    fn test_cpu_type_conversion() {
+        use cpu::CpuType;
+        
+        // 测试整数类型
+        let i32_type = CpuType::integer(32, true);
+        assert_eq!(i32_type.to_cpp(), "int32_t");
+        assert!(i32_type.is_integer());
+        
+        // 测试浮点类型
+        let f32_type = CpuType::float(32);
+        assert_eq!(f32_type.to_cpp(), "float");
+        assert!(f32_type.is_float());
+        
+        // 测试缓冲区类型
+        let buf_type = CpuType::buffer(CpuType::float(32), vec![100, 200]);
+        assert!(buf_type.is_buffer());
+        assert_eq!(buf_type.shape, vec![100, 200]);
+    }
+
+    #[test]
+    fn test_cpu_parallel_config() {
+        use cpu::{ParallelConfig, ThreadSchedule};
+        
+        let config = ParallelConfig::default()
+            .with_threads(4)
+            .with_schedule(ThreadSchedule::Dynamic)
+            .with_chunk_size(16);
+        
+        assert_eq!(config.num_threads, 4);
+        assert_eq!(config.schedule, ThreadSchedule::Dynamic);
+        assert_eq!(config.chunk_size, 16);
+    }
+
+    #[test]
+    fn test_cpu_runtime_config() {
+        use cpu::{RuntimeConfig, CpuRuntime};
+        
+        let config = RuntimeConfig::default()
+            .with_thread_pool(8);
+        
+        assert_eq!(config.thread_pool_size, 8);
+        
+        let runtime = CpuRuntime::new(config);
+        assert!(runtime.optimal_thread_count() >= 1);
     }
 }
