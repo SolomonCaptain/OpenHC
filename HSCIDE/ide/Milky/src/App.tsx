@@ -1,50 +1,50 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import { Suspense } from "react";
+import { ClerkProvider } from "@clerk/clerk-react";
+import { initClerk } from "tauri-plugin-clerk";
+import { MUIThemeProvider } from "./theme/MUIThemeProvider";
+import { AppRouter } from "./routes/AppRouter";
+import { Box, CircularProgress, Typography } from "@mui/material";
+
+// 初始化 Clerk（tauri-plugin-clerk 的核心方法）
+// 这会修补 globalThis.fetch 以将 Clerk 调用路由到 Rust 后端
+initClerk();
+
+// 加载中组件
+function LoadingScreen() {
+  return (
+    <Box
+      sx={{
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 2,
+      }}
+    >
+      <CircularProgress size={48} />
+      <Typography variant="body1" color="text.secondary">
+        正在加载...
+      </Typography>
+    </Box>
+  );
+}
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
-
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
-
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
+    <Suspense fallback={<LoadingScreen />}>
+      <ClerkProvider
+        publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}
+        signInUrl="/auth"
+        signUpUrl="/auth"
+        afterSignInUrl="/home"
+        afterSignUpUrl="/home"
       >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+        <MUIThemeProvider>
+          <AppRouter />
+        </MUIThemeProvider>
+      </ClerkProvider>
+    </Suspense>
   );
 }
 

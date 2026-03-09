@@ -12,6 +12,7 @@
   "dependencies": {
     "@clerk/clerk-js": "^6.0.0",
     "@clerk/clerk-react": "^5.61.3",
+    "@clerk/types": "^4.101.20",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@fontsource/roboto": "^5.2.10",
@@ -26,8 +27,14 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
+    "@types/babel__core": "^7.20.5",
+    "@types/connect": "^3.4.38",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
+    "@types/react-transition-group": "^4.4.12",
+    "@types/uuid": "^10.0.0",
+    "@types/ws": "^8.18.1",
+    "@types/yargs": "^17.0.35",
     "@vitejs/plugin-react": "^4.6.0",
     "typescript": "~5.8.3",
     "vite": "^7.0.4"
